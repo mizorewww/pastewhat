@@ -1,0 +1,16 @@
+{
+  "reference": "final-474ee4f-mlx",
+  "packaged": "packaged-bce862a-mlx",
+  "productionCommit": "bce862aad20c1fe9962e5f37fc153c7f9d19ec13",
+  "cases": 120,
+  "exactMatches": {
+    "recommendedID": 120,
+    "decision": 120,
+    "shortlistedIDs": 120
+  },
+  "datasetSHA256": "0537bde8a33eac2d0aab5dcfb649ecf89acb6b05908ba18a3c628f46476354ea",
+  "unchangedRankingSHA256": "efa5932b397b60a5ea6f88c14cc92aa12e09e631e63b1d816b1474b94c20ffe4",
+  "projectionSourcesMatch": true,
+  "packagedEngineBytecodeFiles": 0,
+  "temporaryEvaluationDirectories": 0
+}

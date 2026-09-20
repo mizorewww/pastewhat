@@ -1,0 +1,363 @@
+{
+  "label": "baseline-0732b42-mlx",
+  "datasetSHA256": "0537bde8a33eac2d0aab5dcfb649ecf89acb6b05908ba18a3c628f46476354ea",
+  "workerSHA256": "02f9418113b435d084cb85f86bd76e91288a25a8c2fba041ea05a7232e76676b",
+  "baselineCommit": "0732b42",
+  "backend": "mlx",
+  "protocol": "legacy",
+  "noModel": false,
+  "split": "all",
+  "subset": "full",
+  "platform": {
+    "system": "Darwin",
+    "release": "27.2.0",
+    "machine": "arm64"
+  },
+  "modelConfigurationSHA256": "9a669a70961064c3c6cc76d2afb8bc5fb10dcd8349bb66e5f7b9b1afb74440d5",
+  "warmup": {
+    "elapsedMS": 528.011,
+    "endToEndMS": 548.519,
+    "mode": "laya",
+    "inferenceCount": null
+  },
+  "overall": {
+    "cases": 120,
+    "answerable": 97,
+    "shouldAbstain": 23,
+    "answerableTop1": 0.783505,
+    "decisionAccuracy": 0.641667,
+    "recommendationPrecision": 0.638655,
+    "recommendationCoverage": 0.991667,
+    "noAnswerFalsePromotionRate": 0.956522,
+    "correctPromotions": 76,
+    "promotions": 119,
+    "correctAbstentions": 1,
+    "missedAnswerable": 0,
+    "wrongPromotionsOnAnswerable": 21,
+    "shortlistRecall": null,
+    "warmLatencyMS": {
+      "p50": 9.04,
+      "p95": 12.237
+    },
+    "warmEndToEndMS": {
+      "p50": 9.168,
+      "p95": 12.397
+    },
+    "modes": {
+      "laya": 119,
+      "fallback": 1
+    },
+    "decisions": {
+      "recommended": 119,
+      "abstain": 1
+    }
+  },
+  "bySplit": {
+    "dev": {
+      "cases": 40,
+      "answerable": 34,
+      "shouldAbstain": 6,
+      "answerableTop1": 0.735294,
+      "decisionAccuracy": 0.65,
+      "recommendationPrecision": 0.641026,
+      "recommendationCoverage": 0.975,
+      "noAnswerFalsePromotionRate": 0.833333,
+      "correctPromotions": 25,
+      "promotions": 39,
+      "correctAbstentions": 1,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 9,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 8.831,
+        "p95": 12.237
+      },
+      "warmEndToEndMS": {
+        "p50": 8.97,
+        "p95": 12.397
+      },
+      "modes": {
+        "laya": 39,
+        "fallback": 1
+      },
+      "decisions": {
+        "recommended": 39,
+        "abstain": 1
+      }
+    },
+    "heldout": {
+      "cases": 80,
+      "answerable": 63,
+      "shouldAbstain": 17,
+      "answerableTop1": 0.809524,
+      "decisionAccuracy": 0.6375,
+      "recommendationPrecision": 0.6375,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": 1.0,
+      "correctPromotions": 51,
+      "promotions": 80,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 12,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 9.12,
+        "p95": 12.229
+      },
+      "warmEndToEndMS": {
+        "p50": 9.337,
+        "p95": 12.385
+      },
+      "modes": {
+        "laya": 80
+      },
+      "decisions": {
+        "recommended": 80
+      }
+    }
+  },
+  "byGroup": {
+    "abstention": {
+      "cases": 18,
+      "answerable": 0,
+      "shouldAbstain": 18,
+      "answerableTop1": null,
+      "decisionAccuracy": 0.055556,
+      "recommendationPrecision": 0.0,
+      "recommendationCoverage": 0.944444,
+      "noAnswerFalsePromotionRate": 0.944444,
+      "correctPromotions": 0,
+      "promotions": 17,
+      "correctAbstentions": 1,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 8.302,
+        "p95": 9.215
+      },
+      "warmEndToEndMS": {
+        "p50": 8.419,
+        "p95": 9.35
+      },
+      "modes": {
+        "laya": 17,
+        "fallback": 1
+      },
+      "decisions": {
+        "recommended": 17,
+        "abstain": 1
+      }
+    },
+    "app_field_conflicts": {
+      "cases": 12,
+      "answerable": 12,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.833333,
+      "decisionAccuracy": 0.833333,
+      "recommendationPrecision": 0.833333,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 10,
+      "promotions": 12,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 2,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 7.949,
+        "p95": 8.71
+      },
+      "warmEndToEndMS": {
+        "p50": 8.043,
+        "p95": 9.598
+      },
+      "modes": {
+        "laya": 12
+      },
+      "decisions": {
+        "recommended": 12
+      }
+    },
+    "code_command": {
+      "cases": 18,
+      "answerable": 18,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.555556,
+      "decisionAccuracy": 0.555556,
+      "recommendationPrecision": 0.555556,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 10,
+      "promotions": 18,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 8,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 8.541,
+        "p95": 9.535
+      },
+      "warmEndToEndMS": {
+        "p50": 8.665,
+        "p95": 9.651
+      },
+      "modes": {
+        "laya": 18
+      },
+      "decisions": {
+        "recommended": 18
+      }
+    },
+    "content_intent": {
+      "cases": 18,
+      "answerable": 18,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.777778,
+      "decisionAccuracy": 0.777778,
+      "recommendationPrecision": 0.777778,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 14,
+      "promotions": 18,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 4,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 8.499,
+        "p95": 9.389
+      },
+      "warmEndToEndMS": {
+        "p50": 8.626,
+        "p95": 9.519
+      },
+      "modes": {
+        "laya": 18
+      },
+      "decisions": {
+        "recommended": 18
+      }
+    },
+    "entity_resolution": {
+      "cases": 18,
+      "answerable": 18,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.833333,
+      "decisionAccuracy": 0.833333,
+      "recommendationPrecision": 0.833333,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 15,
+      "promotions": 18,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 3,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 11.947,
+        "p95": 12.998
+      },
+      "warmEndToEndMS": {
+        "p50": 12.13,
+        "p95": 13.177
+      },
+      "modes": {
+        "laya": 18
+      },
+      "decisions": {
+        "recommended": 18
+      }
+    },
+    "explicit_fields": {
+      "cases": 18,
+      "answerable": 17,
+      "shouldAbstain": 1,
+      "answerableTop1": 0.882353,
+      "decisionAccuracy": 0.833333,
+      "recommendationPrecision": 0.833333,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": 1.0,
+      "correctPromotions": 15,
+      "promotions": 18,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 2,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 11.451,
+        "p95": 12.262
+      },
+      "warmEndToEndMS": {
+        "p50": 11.602,
+        "p95": 12.418
+      },
+      "modes": {
+        "laya": 18
+      },
+      "decisions": {
+        "recommended": 18
+      }
+    },
+    "history_boundary": {
+      "cases": 6,
+      "answerable": 5,
+      "shouldAbstain": 1,
+      "answerableTop1": 1.0,
+      "decisionAccuracy": 0.833333,
+      "recommendationPrecision": 0.833333,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": 1.0,
+      "correctPromotions": 5,
+      "promotions": 6,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 8.832,
+        "p95": 10.087
+      },
+      "warmEndToEndMS": {
+        "p50": 9.053,
+        "p95": 10.361
+      },
+      "modes": {
+        "laya": 6
+      },
+      "decisions": {
+        "recommended": 6
+      }
+    },
+    "representation": {
+      "cases": 12,
+      "answerable": 9,
+      "shouldAbstain": 3,
+      "answerableTop1": 0.777778,
+      "decisionAccuracy": 0.583333,
+      "recommendationPrecision": 0.583333,
+      "recommendationCoverage": 1.0,
+      "noAnswerFalsePromotionRate": 1.0,
+      "correctPromotions": 7,
+      "promotions": 12,
+      "correctAbstentions": 0,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 2,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 9.694,
+        "p95": 10.448
+      },
+      "warmEndToEndMS": {
+        "p50": 9.848,
+        "p95": 10.657
+      },
+      "modes": {
+        "laya": 12
+      },
+      "decisions": {
+        "recommended": 12
+      }
+    }
+  }
+}

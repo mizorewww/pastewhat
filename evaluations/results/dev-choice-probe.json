@@ -1,0 +1,651 @@
+{
+  "experiment": "Development-only short-content choice with none; forward and reverse candidate order",
+  "datasetSHA256": "0537bde8a33eac2d0aab5dcfb649ecf89acb6b05908ba18a3c628f46476354ea",
+  "scriptSHA256": "3ec4dad0fcd16052c306514e2d1ad2edff4d00cf146bf193c2fe940d44549c64",
+  "selectionRule": "dev-v1-projected-mlx abstained; nonsecure; nonempty projected field/task; use its shortlist",
+  "instruction": "Which clipboard item should be pasted to satisfy the current input task? Choose none if no item fits or the context cannot distinguish the suitable items. Judge the complete item as pasted, not an extracted substring.",
+  "backend": "mlx",
+  "model": "laya-multilingual-mlx",
+  "dtype": "float16",
+  "summary": {
+    "cases": 8,
+    "forwardPasses": 16,
+    "answerableCases": 6,
+    "noAnswerCases": 2,
+    "stableSelections": 5,
+    "stableCorrectOnAnswerable": 3,
+    "stableCorrectAbstentions": 2,
+    "falsePromotionPermutations": 0,
+    "correctPermutations": 13,
+    "totalPermutations": 16
+  },
+  "skipped": [
+    {
+      "caseID": "PW099",
+      "reason": "Production prefilter has no candidates; do not ask a choice question."
+    }
+  ],
+  "executionNote": "Initial invocation stopped at the empty PW099 shortlist after six cases; prompt and labels were unchanged for this complete run.",
+  "cases": [
+    {
+      "caseID": "PW038",
+      "correctIDs": [
+        "PW038-c2"
+      ],
+      "expected": {
+        "decision": "recommend",
+        "correctIDs": [
+          "PW038-c2"
+        ],
+        "rationale": "The context names the Singapore delivery address."
+      },
+      "projectedContext": {
+        "applicationCategory": "browser",
+        "fieldLabel": "Shipping address",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "使用新加坡的收货地址。"
+      },
+      "candidateCount": 3,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW038-c3",
+            "option_2": "PW038-c1",
+            "option_3": "PW038-c2"
+          },
+          "criteria": {
+            "option_1": "5 Test Lane, Sydney, Australia",
+            "option_2": "88 Example Road, London, UK",
+            "option_3": "12 Sample Street, Singapore 018956",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_3",
+          "selectedID": "PW038-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.0397,
+            "option_2": 0.106,
+            "option_3": 0.8006,
+            "none": 0.0537
+          },
+          "confidence": 0.4942,
+          "totalTokens": 169,
+          "elapsedMS": 33.1
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW038-c2",
+            "option_2": "PW038-c1",
+            "option_3": "PW038-c3"
+          },
+          "criteria": {
+            "option_1": "12 Sample Street, Singapore 018956",
+            "option_2": "88 Example Road, London, UK",
+            "option_3": "5 Test Lane, Sydney, Australia",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_3",
+          "selectedID": "PW038-c3",
+          "correct": false,
+          "probabilities": {
+            "option_1": 0.2096,
+            "option_2": 0.2083,
+            "option_3": 0.2987,
+            "none": 0.2834
+          },
+          "confidence": 0.0099,
+          "totalTokens": 169,
+          "elapsedMS": 12.043
+        }
+      ],
+      "stableSelection": false,
+      "stableCorrect": false
+    },
+    {
+      "caseID": "PW039",
+      "correctIDs": [
+        "PW039-c2"
+      ],
+      "expected": {
+        "decision": "recommend",
+        "correctIDs": [
+          "PW039-c2"
+        ],
+        "rationale": "The requested sentence concerns cancellation, while the alternatives concern rescheduling and confirmation."
+      },
+      "projectedContext": {
+        "applicationCategory": "mail",
+        "fieldLabel": "",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "Reply with the cancellation notice."
+      },
+      "candidateCount": 3,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW039-c1",
+            "option_2": "PW039-c2",
+            "option_3": "PW039-c3"
+          },
+          "criteria": {
+            "option_1": "Your appointment is confirmed for Tuesday.",
+            "option_2": "Your appointment has been cancelled.",
+            "option_3": "Your appointment has moved to Wednesday.",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_2",
+          "selectedID": "PW039-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.1952,
+            "option_2": 0.4275,
+            "option_3": 0.1267,
+            "none": 0.2506
+          },
+          "confidence": 0.0689,
+          "totalTokens": 154,
+          "elapsedMS": 9.191
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW039-c3",
+            "option_2": "PW039-c2",
+            "option_3": "PW039-c1"
+          },
+          "criteria": {
+            "option_1": "Your appointment has moved to Wednesday.",
+            "option_2": "Your appointment has been cancelled.",
+            "option_3": "Your appointment is confirmed for Tuesday.",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_3",
+          "selectedID": "PW039-c1",
+          "correct": false,
+          "probabilities": {
+            "option_1": 0.0449,
+            "option_2": 0.3798,
+            "option_3": 0.4033,
+            "none": 0.172
+          },
+          "confidence": 0.1516,
+          "totalTokens": 154,
+          "elapsedMS": 8.665
+        }
+      ],
+      "stableSelection": false,
+      "stableCorrect": false
+    },
+    {
+      "caseID": "PW067",
+      "correctIDs": [
+        "PW067-c2"
+      ],
+      "expected": {
+        "decision": "recommend",
+        "correctIDs": [
+          "PW067-c2"
+        ],
+        "rationale": "The task asks to print the current directory; pwd is the matching command."
+      },
+      "projectedContext": {
+        "applicationCategory": "terminal",
+        "fieldLabel": "",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "Print the current working directory."
+      },
+      "candidateCount": 3,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW067-c1",
+            "option_2": "PW067-c3",
+            "option_3": "PW067-c2"
+          },
+          "criteria": {
+            "option_1": "ls",
+            "option_2": "cd ..",
+            "option_3": "pwd",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_3",
+          "selectedID": "PW067-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.0759,
+            "option_2": 0.2905,
+            "option_3": 0.4959,
+            "none": 0.1377
+          },
+          "confidence": 0.152,
+          "totalTokens": 138,
+          "elapsedMS": 9.162
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW067-c2",
+            "option_2": "PW067-c3",
+            "option_3": "PW067-c1"
+          },
+          "criteria": {
+            "option_1": "pwd",
+            "option_2": "cd ..",
+            "option_3": "ls",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_1",
+          "selectedID": "PW067-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.4792,
+            "option_2": 0.3815,
+            "option_3": 0.0692,
+            "none": 0.07
+          },
+          "confidence": 0.2129,
+          "totalTokens": 138,
+          "elapsedMS": 8.352
+        }
+      ],
+      "stableSelection": true,
+      "stableCorrect": true
+    },
+    {
+      "caseID": "PW069",
+      "correctIDs": [
+        "PW069-c2"
+      ],
+      "expected": {
+        "decision": "recommend",
+        "correctIDs": [
+          "PW069-c2"
+        ],
+        "rationale": "The task asks for a Swift function, not JavaScript or Python."
+      },
+      "projectedContext": {
+        "applicationCategory": "development",
+        "fieldLabel": "",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "插入 Swift 的 greet 函数。"
+      },
+      "candidateCount": 3,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW069-c1",
+            "option_2": "PW069-c2",
+            "option_3": "PW069-c3"
+          },
+          "criteria": {
+            "option_1": "function greet() { return \"hello\"; }",
+            "option_2": "func greet() -> String { \"hello\" }",
+            "option_3": "def greet():\n    return \"hello\"",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_2",
+          "selectedID": "PW069-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.3198,
+            "option_2": 0.3816,
+            "option_3": 0.238,
+            "none": 0.0606
+          },
+          "confidence": 0.1028,
+          "totalTokens": 164,
+          "elapsedMS": 9.009
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW069-c3",
+            "option_2": "PW069-c2",
+            "option_3": "PW069-c1"
+          },
+          "criteria": {
+            "option_1": "def greet():\n    return \"hello\"",
+            "option_2": "func greet() -> String { \"hello\" }",
+            "option_3": "function greet() { return \"hello\"; }",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_2",
+          "selectedID": "PW069-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.3853,
+            "option_2": 0.4327,
+            "option_3": 0.1506,
+            "none": 0.0314
+          },
+          "confidence": 0.1894,
+          "totalTokens": 164,
+          "elapsedMS": 8.719
+        }
+      ],
+      "stableSelection": true,
+      "stableCorrect": true
+    },
+    {
+      "caseID": "PW070",
+      "correctIDs": [
+        "PW070-c2"
+      ],
+      "expected": {
+        "decision": "recommend",
+        "correctIDs": [
+          "PW070-c2"
+        ],
+        "rationale": "The context asks for descending sort, and the SQL snippets differ in direction."
+      },
+      "projectedContext": {
+        "applicationCategory": "development",
+        "fieldLabel": "",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "SQL: order events by created_at descending."
+      },
+      "candidateCount": 3,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW070-c1",
+            "option_2": "PW070-c3",
+            "option_3": "PW070-c2"
+          },
+          "criteria": {
+            "option_1": "SELECT * FROM events ORDER BY created_at ASC;",
+            "option_2": "SELECT * FROM events;",
+            "option_3": "SELECT * FROM events ORDER BY created_at DESC;",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_1",
+          "selectedID": "PW070-c1",
+          "correct": false,
+          "probabilities": {
+            "option_1": 0.3249,
+            "option_2": 0.261,
+            "option_3": 0.3143,
+            "none": 0.0999
+          },
+          "confidence": 0.0553,
+          "totalTokens": 165,
+          "elapsedMS": 8.753
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW070-c2",
+            "option_2": "PW070-c3",
+            "option_3": "PW070-c1"
+          },
+          "criteria": {
+            "option_1": "SELECT * FROM events ORDER BY created_at DESC;",
+            "option_2": "SELECT * FROM events;",
+            "option_3": "SELECT * FROM events ORDER BY created_at ASC;",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_1",
+          "selectedID": "PW070-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.4841,
+            "option_2": 0.3024,
+            "option_3": 0.1326,
+            "none": 0.0809
+          },
+          "confidence": 0.1458,
+          "totalTokens": 165,
+          "elapsedMS": 8.781
+        }
+      ],
+      "stableSelection": false,
+      "stableCorrect": false
+    },
+    {
+      "caseID": "PW072",
+      "correctIDs": [
+        "PW072-c2"
+      ],
+      "expected": {
+        "decision": "recommend",
+        "correctIDs": [
+          "PW072-c2"
+        ],
+        "rationale": "A code comment is explicitly required rather than the executable command or code."
+      },
+      "projectedContext": {
+        "applicationCategory": "development",
+        "fieldLabel": "",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "Paste the comment starting with // Deploy."
+      },
+      "candidateCount": 3,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW072-c2",
+            "option_2": "PW072-c1",
+            "option_3": "PW072-c3"
+          },
+          "criteria": {
+            "option_1": "// Deploy after the integration checks pass.",
+            "option_2": "npm run deploy",
+            "option_3": "Deployment completed.",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_1",
+          "selectedID": "PW072-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.3613,
+            "option_2": 0.1869,
+            "option_3": 0.3444,
+            "none": 0.1073
+          },
+          "confidence": 0.0709,
+          "totalTokens": 150,
+          "elapsedMS": 8.342
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW072-c3",
+            "option_2": "PW072-c1",
+            "option_3": "PW072-c2"
+          },
+          "criteria": {
+            "option_1": "Deployment completed.",
+            "option_2": "npm run deploy",
+            "option_3": "// Deploy after the integration checks pass.",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "option_3",
+          "selectedID": "PW072-c2",
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.1114,
+            "option_2": 0.2418,
+            "option_3": 0.5466,
+            "none": 0.1002
+          },
+          "confidence": 0.1716,
+          "totalTokens": 150,
+          "elapsedMS": 8.473
+        }
+      ],
+      "stableSelection": true,
+      "stableCorrect": true
+    },
+    {
+      "caseID": "PW100",
+      "correctIDs": [],
+      "expected": {
+        "decision": "abstain",
+        "correctIDs": [],
+        "rationale": "The requested production endpoint is absent; all concrete candidates are staging or local."
+      },
+      "projectedContext": {
+        "applicationCategory": "development",
+        "fieldLabel": "API URL",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "Use the production payments endpoint, not staging or localhost."
+      },
+      "candidateCount": 2,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW100-c1",
+            "option_2": "PW100-c2"
+          },
+          "criteria": {
+            "option_1": "https://staging.example.test/payments",
+            "option_2": "http://localhost:8080/payments",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "none",
+          "selectedID": null,
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.0988,
+            "option_2": 0.2038,
+            "none": 0.6974
+          },
+          "confidence": 0.268,
+          "totalTokens": 156,
+          "elapsedMS": 8.715
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW100-c2",
+            "option_2": "PW100-c1"
+          },
+          "criteria": {
+            "option_1": "http://localhost:8080/payments",
+            "option_2": "https://staging.example.test/payments",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "none",
+          "selectedID": null,
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.076,
+            "option_2": 0.067,
+            "none": 0.857
+          },
+          "confidence": 0.5365,
+          "totalTokens": 156,
+          "elapsedMS": 8.548
+        }
+      ],
+      "stableSelection": true,
+      "stableCorrect": true
+    },
+    {
+      "caseID": "PW102",
+      "correctIDs": [],
+      "expected": {
+        "decision": "abstain",
+        "correctIDs": [],
+        "rationale": "The task names a chart but only anonymous images are available, so pixels cannot be inferred from summaries."
+      },
+      "projectedContext": {
+        "applicationCategory": "unknown",
+        "fieldLabel": "Image",
+        "fieldRole": "AXTextField",
+        "hasAccessibility": true,
+        "inputSurface": "text",
+        "isSecure": false,
+        "selectedText": "",
+        "surroundingText": "Use the revenue chart, not the cost chart."
+      },
+      "candidateCount": 2,
+      "permutations": [
+        {
+          "order": "forward",
+          "optionToCandidate": {
+            "option_1": "PW102-c2",
+            "option_2": "PW102-c1"
+          },
+          "criteria": {
+            "option_1": "图片",
+            "option_2": "图片",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "none",
+          "selectedID": null,
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.2336,
+            "option_2": 0.3508,
+            "none": 0.4156
+          },
+          "confidence": 0.0242,
+          "totalTokens": 137,
+          "elapsedMS": 8.277
+        },
+        {
+          "order": "reverse",
+          "optionToCandidate": {
+            "option_1": "PW102-c1",
+            "option_2": "PW102-c2"
+          },
+          "criteria": {
+            "option_1": "图片",
+            "option_2": "图片",
+            "none": "No suitable item, or insufficient evidence to select a unique item."
+          },
+          "selectedOption": "none",
+          "selectedID": null,
+          "correct": true,
+          "probabilities": {
+            "option_1": 0.2336,
+            "option_2": 0.3508,
+            "none": 0.4156
+          },
+          "confidence": 0.0242,
+          "totalTokens": 137,
+          "elapsedMS": 8.604
+        }
+      ],
+      "stableSelection": true,
+      "stableCorrect": true
+    }
+  ]
+}

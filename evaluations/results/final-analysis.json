@@ -1,0 +1,62 @@
+{
+  "productionCommit": "474ee4fede577c5d5464eec78ef61d2c81851f87",
+  "datasetSHA256": "0537bde8a33eac2d0aab5dcfb649ecf89acb6b05908ba18a3c628f46476354ea",
+  "decomposition": {
+    "all": {
+      "cases": 120,
+      "answerable": 97,
+      "shortlistMisses": 0,
+      "rawRankingTop1Correct": 87,
+      "rawTop1CorrectWithTiedTopScore": 10,
+      "correctRawFirstButAbstained": 10,
+      "correctRawFirstButAbstainedByDecision": {
+        "ambiguous": 4,
+        "insufficient_context": 4,
+        "no_compatible_candidate": 2
+      },
+      "baselineDecisionCorrectNowIncorrect": 11,
+      "baselineDecisionIncorrectNowCorrect": 32,
+      "baselineCorrectRecommendationNowWrongOrAbstain": 11,
+      "baselineWrongRecommendationNowCorrect": 12,
+      "originalCandidates": 455,
+      "shortlistedCandidates": 341
+    },
+    "heldout": {
+      "cases": 80,
+      "answerable": 63,
+      "shortlistMisses": 0,
+      "rawRankingTop1Correct": 55,
+      "rawTop1CorrectWithTiedTopScore": 9,
+      "correctRawFirstButAbstained": 10,
+      "correctRawFirstButAbstainedByDecision": {
+        "ambiguous": 4,
+        "insufficient_context": 4,
+        "no_compatible_candidate": 2
+      },
+      "baselineDecisionCorrectNowIncorrect": 11,
+      "baselineDecisionIncorrectNowCorrect": 20,
+      "baselineCorrectRecommendationNowWrongOrAbstain": 11,
+      "baselineWrongRecommendationNowCorrect": 5,
+      "originalCandidates": 299,
+      "shortlistedCandidates": 241
+    },
+    "dev": {
+      "cases": 40,
+      "answerable": 34,
+      "shortlistMisses": 0,
+      "rawRankingTop1Correct": 32,
+      "rawTop1CorrectWithTiedTopScore": 1,
+      "correctRawFirstButAbstained": 0,
+      "correctRawFirstButAbstainedByDecision": {},
+      "baselineDecisionCorrectNowIncorrect": 0,
+      "baselineDecisionIncorrectNowCorrect": 12,
+      "baselineCorrectRecommendationNowWrongOrAbstain": 0,
+      "baselineWrongRecommendationNowCorrect": 7,
+      "originalCandidates": 156,
+      "shortlistedCandidates": 100
+    }
+  },
+  "coremlDecisionMatchesMLX": 32,
+  "coremlRecommendedIDMatchesMLX": 32,
+  "coremlCases": 32
+}
