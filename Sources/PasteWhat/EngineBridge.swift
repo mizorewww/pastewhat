@@ -151,6 +151,7 @@ final class EngineBridge {
         environment["HF_HUB_OFFLINE"] = "1"
         environment["TRANSFORMERS_OFFLINE"] = "1"
         environment["TOKENIZERS_PARALLELISM"] = "false"
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
         child.environment = environment
         input = inputPipe.fileHandleForWriting
         process = child

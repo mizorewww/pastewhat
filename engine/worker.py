@@ -13,6 +13,9 @@ import time
 from pathlib import Path
 from collections import OrderedDict
 
+# This worker lives inside a signed app bundle. Set this before importing sibling
+# modules; doing it only in main() writes __pycache__ into the sealed resources.
+sys.dont_write_bytecode = True
 from ranking import extract_features, make_intent, preselect, useful_facets, score_candidates, decide, public_rankings
 
 MAX_LINE_BYTES = 1024 * 1024

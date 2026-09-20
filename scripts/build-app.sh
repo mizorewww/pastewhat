@@ -11,6 +11,7 @@ fi
 swift build -c "$CONFIGURATION"
 BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path)"
 APP_DIR="$PROJECT_DIR/dist/PasteWhat.app"
+rm -rf "$APP_DIR/Contents/Resources/engine"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources/engine"
 cp "$BIN_DIR/PasteWhat" "$APP_DIR/Contents/MacOS/PasteWhat"
 cp "$PROJECT_DIR/Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
