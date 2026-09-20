@@ -8,45 +8,38 @@ import hashlib
 import json
 import math
 import os
-import re
 import sys
 import time
-import unicodedata
 from pathlib import Path
+from collections import OrderedDict
+
+from ranking import extract_features, make_intent, preselect, useful_facets, score_candidates, decide, public_rankings
 
 MAX_LINE_BYTES = 1024 * 1024
 MAX_ENTRIES = 20
 MAX_TEXT_CHARS = 32_768
 KINDS = {"text", "url", "email", "code", "command", "phone", "file", "image", "color"}
-KIND_NAMES = {
-    "text": "文本", "url": "链接", "email": "邮箱", "code": "代码",
-    "command": "命令", "phone": "电话", "path": "文件路径", "image": "图片", "color": "颜色",
-}
-TYPE_QUESTION = {
+QUESTIONS = {
     "kind": {
         "type": "choice",
-        "instructions": (
-            "What type of clipboard content is needed in the currently focused input "
-            "field, according to the task and application context?"
-        ),
-        "criteria": {
-            "email": "an email address",
-            "url": "a web URL or API endpoint",
-            "code": "source code or SQL",
-            "command": "a terminal shell command",
-            "text": "plain text prose or a message",
-            "phone": "a phone number",
-            "path": "a local filesystem path",
-            "color": "a hexadecimal or RGB color value",
-        },
-    }
-}
-STOP_WORDS = {
-    "the", "a", "an", "of", "to", "and", "or", "is", "for", "in", "on", "at", "it",
-    "i", "me", "my", "we", "you", "your", "this", "that", "with", "from", "need", "only",
-    "current", "app", "field", "task", "please", "paste", "set", "environment", "string",
-    "value", "list", "can", "could", "would", "should", "into", "want", "have", "has", "be",
-    "as", "are", "was", "how", "do", "does", "then", "using",
+        "instructions": "Which content is needed at the focused input? Follow the task and field, not the application category. Choose unknown if not specified.",
+        "criteria": {"email": "email address", "url": "web link or API URL", "code": "source code or SQL",
+                     "command": "shell command", "text": "prose or message", "phone": "phone number",
+                     "path": "file or filesystem path", "color": "color value", "image": "image or screenshot",
+                     "unknown": "not specified or insufficient context"},
+    },
+    "environment": {
+        "type": "choice",
+        "instructions": "Which deployment environment does the current task need? Respect negations. Choose unknown if no environment is requested.",
+        "criteria": {"local": "local development", "testing": "testing or sandbox", "staging": "staging or pre-production",
+                     "production": "live production", "unknown": "not specified"},
+    },
+    "purpose": {
+        "type": "choice",
+        "instructions": "What is the requested link used for in the current task? Choose unknown if the purpose is not specified.",
+        "criteria": {"api": "API endpoint or webhook", "documentation": "documentation or reference guide",
+                     "issue": "issue or bug tracking", "repository": "source repository", "unknown": "not specified"},
+    },
 }
 CONTEXT_LIMITS = {
     "applicationCategory": 64, "inputSurface": 64,
@@ -144,113 +137,16 @@ def validate_request(raw):
     return raw["id"], clean_context, clean_entries
 
 
-def tokens(text):
-    normalized = unicodedata.normalize("NFKC", text).lower()
-    result = set()
-    for token in re.findall(r"[a-z0-9_]+", normalized):
-        if len(token) > 5 and token.endswith(("ches", "shes", "sses", "xes")):
-            token = token[:-2]
-        elif len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
-            token = token[:-1]
-        if len(token) > 1 and token not in STOP_WORDS:
-            result.add(token)
-    for word in re.findall(r"[\u3400-\u9fff]+", normalized):
-        result.update(word[index:index + 2] for index in range(len(word) - 1))
-    return result
-
-
-def content_kind(entry):
-    kind = entry["kind"]
-    if kind != "text":
-        return "path" if kind == "file" else kind
-    text = entry["text"].strip()
-    if re.fullmatch(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text):
-        return "email"
-    if re.match(r"https?://\S+$", text, re.IGNORECASE):
-        return "url"
-    if re.match(r"(?:git|npm|pnpm|yarn|python3?|curl|ls|cd|brew|swift|xcrun)\s", text):
-        return "command"
-    if re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?", text):
-        return "color"
-    return "text"
-
-
-def explicit_kind(context):
-    field = context["fieldLabel"] + " " + context["fieldRole"]
-    task = context["selectedText"] + " " + context["surroundingText"]
-    patterns = [
-        ("email", r"收件人|邮箱|邮件地址|\b(?:e-?mail|recipient|to address)\b"),
-        ("url", r"网址|链接|\b(?:url|uri|website|web address|apiurl)\b"),
-        ("phone", r"手机号|电话号码|\b(?:phone|telephone|mobile number)\b"),
-        ("path", r"文件路径|目录路径|\b(?:file path|folder path|directory path)\b"),
-        ("color", r"颜色值|色值|\b(?:hex color|hex colour|color value|rgb)\b"),
-        ("command", r"终端命令|命令行|\b(?:shell prompt|shell command|terminal command)\b"),
-        ("image", r"图片|图像|\b(?:image|picture|photo)\b"),
-    ]
-    for kind, pattern in patterns:
-        if re.search(pattern, field, re.IGNORECASE):
-            return kind
-    # Require an explicit content request in prose; an app name is only a soft hint.
-    task_patterns = {
-        "email": r"邮箱|邮件地址|\be-?mail address\b",
-        "url": r"网址|链接|\b(?:url|uri|apiurl)\b",
-        "phone": r"手机号|电话号码|\b(?:phone number|telephone number)\b",
-        "path": r"文件路径|目录路径|\b(?:file path|folder path)\b",
-        "color": r"颜色值|色值|\b(?:hex color|hex colour|color value)\b",
-        "command": r"终端命令|\b(?:shell command|terminal command)\b",
-    }
-    for kind, pattern in task_patterns.items():
-        if re.search(pattern, task, re.IGNORECASE):
-            return kind
-    return None
-
-
-def rank_entries(context, entries, probabilities):
-    intent = explicit_kind(context)
-    task = context["selectedText"] + " " + context["surroundingText"]
-    context_tokens = tokens(task + " " + context["fieldLabel"])
-    target_numbers = set(re.findall(r"(?<![A-Za-z])\d{2,}(?![A-Za-z])", task))
-    ranked = []
-    for index, entry in enumerate(entries):
-        kind = content_kind(entry)
-        overlap = context_tokens & tokens(entry["text"])
-        lexical = min(6.0, sum(
-            2.0 if token.isdigit() or re.search(r"[\u3400-\u9fff]", token) else 1.0
-            for token in overlap
-        ))
-        numbers = set(re.findall(r"(?<![A-Za-z])\d{2,}(?![A-Za-z])", entry["text"]))
-        precise_number = bool(target_numbers & numbers)
-        kind_probability = probabilities.get(kind, 0.0)
-        matches_field = intent is not None and kind == intent
-        score = 2.0 * kind_probability + lexical + (3.0 if precise_number else 0.0)
-        if intent:
-            score += 3.0 if matches_field else -1.5
-        score += 0.12 * (len(entries) - index) / max(1, len(entries))
-        if matches_field and (lexical or precise_number):
-            reason = "匹配当前输入位置与语境"
-        elif precise_number:
-            reason = "包含当前语境中的编号"
-        elif lexical:
-            reason = "与当前输入语境相关"
-        elif matches_field:
-            reason = "符合当前输入位置需要的" + KIND_NAMES[kind]
-        elif kind_probability >= 0.4:
-            reason = "Laya 判断当前适合粘贴" + KIND_NAMES[kind]
-        else:
-            reason = "最近复制的内容"
-        ranked.append({"id": entry["id"], "score": round(score, 6), "reason": reason})
-    return sorted(ranked, key=lambda item: -item["score"])
-
 
 class RecommendationEngine:
-    def __init__(self, backend, model_path, diagnostics):
+    def __init__(self, backend, model_path, diagnostics, *, no_model=False):
         self.backend = backend
         self.model_path = Path(model_path).expanduser().resolve()
         self.diagnostics = diagnostics
         self.agent = None
         self.load_error = None
-        self.cached_context = None
-        self.cached_probabilities = None
+        self.no_model = no_model
+        self.cache = OrderedDict()
         self.inference_count = 0
 
     def load(self):
@@ -274,7 +170,7 @@ class RecommendationEngine:
                 manifest = json.loads((self.model_path / "coreml_config.json").read_text())
                 shape = manifest.get("shape", {})
                 if (manifest.get("format") != "laya-coreml"
-                        or shape.get("max_length", 0) < 512 or shape.get("max_options", 0) < 8):
+                        or shape.get("max_length", 0) < 512 or shape.get("max_options", 0) < len(QUESTIONS["kind"]["criteria"])):
                     self.load_error = "请选择通用 Core ML 模型；短语境 ANE 模型不适用于此任务。"
                     raise ValueError()
                 from laya_coreml import load
@@ -299,49 +195,50 @@ class RecommendationEngine:
         selected = token_ids[-limit:] if tail else token_ids[:limit]
         return self.agent.tok.backend.decode(selected, skip_special_tokens=False)
 
-    def bounded_context(self, context):
-        # Identity metadata is excluded by the protocol, not merely hidden in a prompt.
+    def bounded_context(self, context, question):
         state = {
-            "focused_field": self.clipped_tokens(context["fieldLabel"], 80),
-            "input_role": self.clipped_tokens(context["fieldRole"], 24),
             "application_category": context["applicationCategory"],
             "input_surface": context["inputSurface"],
+            "focused_field": self.clipped_tokens(context["fieldLabel"], 80),
+            "input_role": self.clipped_tokens(context["fieldRole"], 24),
             "selected_text": self.clipped_tokens(context["selectedText"], 144),
             "surrounding_text": self.clipped_tokens(context["surroundingText"], 384, tail=True),
         }
-        empty, _ = self.agent.prepare("", TYPE_QUESTION)
-        available = self.agent.cfg["max_len"] - len(empty[0]["ids"])
+        empty, _ = self.agent.prepare("", question)
+        available = self.agent.cfg["max_len"] - len(empty[0]["ids"]) - 8
         encoded = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
-        # Re-budget individual values instead of cutting a JSON string in the middle.
-        # Retain the cursor end when reducing nearby text, including on 512-token models.
         for key in ("surrounding_text", "selected_text", "focused_field", "input_role", "input_surface", "application_category"):
             excess = len(self.agent.tok(encoded)["input_ids"]) - available
             if excess <= 0:
                 break
             length = len(self.agent.tok(state[key])["input_ids"])
-            state[key] = self.clipped_tokens(state[key], max(0, length - excess - 8),
-                                              tail=key == "surrounding_text")
+            state[key] = self.clipped_tokens(state[key], max(0, length - excess - 8), tail=key == "surrounding_text")
             encoded = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+        if len(self.agent.tok(encoded)["input_ids"]) > available:
+            raise ValueError("Insufficient context budget")
         return encoded
 
-    def infer_types(self, context):
+    def infer(self, context, name):
         self.load()
-        state = self.bounded_context(context)
-        fingerprint = hashlib.sha256(state.encode("utf-8")).digest()
-        if fingerprint == self.cached_context:
-            return self.cached_probabilities
+        question = {name: QUESTIONS[name]}
+        state = self.bounded_context(context, question)
+        fingerprint = hashlib.sha256((name + state).encode("utf-8")).digest()
+        if fingerprint in self.cache:
+            self.cache.move_to_end(fingerprint)
+            return self.cache[fingerprint]
         self.inference_count += 1
-        result = self.agent.predict(state, TYPE_QUESTION)
-        probabilities = result["answers"]["kind"]["probabilities"]
+        result = self.agent.predict(state, question)
+        probabilities = result["answers"][name]["probabilities"]
         if not isinstance(probabilities, dict) or any(
-            key not in probabilities or not isinstance(probabilities[key], (int, float))
+            key not in probabilities or type(probabilities[key]) not in (int, float)
             or not math.isfinite(probabilities[key]) or not 0 <= probabilities[key] <= 1
-            for key in TYPE_QUESTION["kind"]["criteria"]
+            for key in QUESTIONS[name]["criteria"]
         ):
             raise ValueError("Invalid model probabilities")
-        self.cached_context = fingerprint
-        self.cached_probabilities = dict(probabilities)
-        return self.cached_probabilities
+        self.cache[fingerprint] = dict(probabilities)
+        while len(self.cache) > 24:
+            self.cache.popitem(last=False)
+        return self.cache[fingerprint]
 
     def respond(self, request_id, context, entries):
         started = time.perf_counter()
@@ -349,33 +246,35 @@ class RecommendationEngine:
         result = {
             "id": request_id, "recommendedID": None, "rankings": [], "mode": "fallback",
             "backend": self.backend, "elapsedMS": 0.0, "message": None,
-            "decision": "empty_history", "shortlistedIDs": [entry["id"] for entry in entries],
-            "inferenceCount": 0, "appliedFacets": [],
+            "decision": "empty_history", "shortlistedIDs": [], "inferenceCount": 0, "appliedFacets": [],
         }
         if context["isSecure"]:
-            self.cached_context = self.cached_probabilities = None
-            result["rankings"] = [
-                {"id": entry["id"], "score": 0.0, "reason": "按复制时间排列"}
-                for entry in entries
-            ]
-            result["message"] = "安全输入框已暂停语境推荐。"
-            result["decision"] = "secure_field"
-        elif entries and not any(context[key].strip() for key in ("fieldLabel", "selectedText", "surroundingText")):
-            result["decision"] = "insufficient_context"
-            result["message"] = "当前语境不足 · 按复制时间排列"
+            self.cache.clear()
+            result.update(decision="secure_field", message="安全输入框已暂停语境推荐。")
         elif entries:
-            probabilities = {}
-            try:
-                probabilities = self.infer_types(context)
-                result["mode"] = "laya"
-            except Exception as error:  # noqa: BLE001 - runtime failures must preserve usable history.
-                result["message"] = self.load_error or "本次 Laya 推理未完成，已使用本地匹配。"
-                if not self.load_error:
-                    self.diagnostics.write("PasteWhat: inference failed (" + type(error).__name__ + ").\n")
-                    self.diagnostics.flush()
-            result["rankings"] = rank_entries(context, entries, probabilities)
-            result["recommendedID"] = result["rankings"][0]["id"]
-            result["decision"] = "recommended"
+            features = extract_features(entries)
+            intent = make_intent(context)
+            shortlist = preselect(features, intent)
+            result["shortlistedIDs"] = [feature.entry["id"] for feature in shortlist]
+            signals = {}
+            runtime_message = None
+            if intent.has_context and shortlist and not self.no_model:
+                try:
+                    for name in ["kind", *useful_facets(shortlist, intent)]:
+                        signals[name] = self.infer(context, name)
+                        result["appliedFacets"].append(name)
+                    result["mode"] = "laya"
+                except Exception as error:
+                    signals = {}
+                    result["appliedFacets"] = []
+                    runtime_message = self.load_error or "本次 Laya 推理未完成，已使用本地匹配。"
+                    if not self.load_error:
+                        self.diagnostics.write("PasteWhat: inference failed (" + type(error).__name__ + ").\n")
+                        self.diagnostics.flush()
+            ranked = score_candidates(shortlist, intent, signals)
+            recommendation, decision, message = decide(ranked, intent, signals)
+            result.update(recommendedID=recommendation, decision=decision,
+                          rankings=public_rankings(ranked), message=message or runtime_message)
         result["elapsedMS"] = round((time.perf_counter() - started) * 1000, 3)
         result["inferenceCount"] = self.inference_count
         return result
@@ -393,6 +292,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend", choices=("mlx", "coreml"), default="mlx")
     parser.add_argument("--model", required=True, help="Existing local model directory")
+    parser.add_argument("--no-model", action="store_true", help="Evaluate local retrieval without loading Laya")
     args = parser.parse_args()
     for name, value in {
         "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "TRANSFORMERS_OFFLINE": "1",
@@ -407,7 +307,7 @@ def main():
          open(os.devnull, "w") as quiet:
         os.dup2(quiet.fileno(), sys.stdout.fileno())
         os.dup2(quiet.fileno(), sys.stderr.fileno())
-        engine = RecommendationEngine(args.backend, args.model, diagnostics)
+        engine = RecommendationEngine(args.backend, args.model, diagnostics, no_model=args.no_model)
         while True:
             line = sys.stdin.buffer.readline(MAX_LINE_BYTES + 1)
             if not line:

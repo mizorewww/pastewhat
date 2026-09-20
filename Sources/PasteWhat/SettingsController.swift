@@ -33,7 +33,7 @@ final class SettingsController: NSWindowController {
     required init?(coder: NSCoder) { nil }
 
     func show() {
-        permissionLabel.stringValue = ContextReader.isTrusted ? "已允许 · 可读取输入语境并自动粘贴" : "未开启 · 仍可根据应用推荐与手动复制"
+        permissionLabel.stringValue = ContextReader.isTrusted ? "已允许 · 可读取输入语境并自动粘贴" : "未开启 · 可浏览历史、搜索与手动复制"
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         NSApp.activate()
         showWindow(nil)

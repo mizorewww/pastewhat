@@ -102,7 +102,7 @@ struct AppContext: Codable, Sendable {
         if isSecure { return "安全输入框 · 不读取输入内容" }
         if !fieldLabel.isEmpty { return String(fieldLabel.prefix(90)) }
         if hasFieldContext { return "已读取当前输入位置的语境" }
-        return hasAccessibility ? "当前应用语境" : "仅根据当前应用推荐"
+        return hasAccessibility ? "当前应用语境" : "开启辅助功能可按输入语境推荐"
     }
 }
 

@@ -13,7 +13,7 @@ enum ApplicationCategory: String, Codable, Sendable {
             (.development, ["com.apple.dt.xcode", "com.microsoft.vscode", "com.todesktop.230313mzl4w4u92", "dev.zed.zed", "com.jetbrains.", "com.sublimetext.", "com.panic.nova"]),
             (.terminal, ["com.apple.terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.warp-stable", "org.alacritty", "net.kovidgoyal.kitty"]),
             (.mail, ["com.apple.mail", "com.microsoft.outlook", "com.readdle.smartemail-macos", "org.mozilla.thunderbird"]),
-            (.messaging, ["com.apple.ichat", "com.tinyspeck.slackmacgap", "com.tencent.xinwechat", "com.tencent.qq", "com.hnc.discord", "ru.keepcoder.telegram", "org.whispersystems.signal-desktop", "com.microsoft.teams2", "com.openai.chat", "com.anthropic.claudefordesktop"]),
+            (.messaging, ["com.apple.ichat", "com.apple.mobilesms", "com.tinyspeck.slackmacgap", "com.tencent.xinwechat", "com.tencent.qq", "com.hnc.discord", "ru.keepcoder.telegram", "org.whispersystems.signal-desktop", "com.microsoft.teams2", "com.openai.chat", "com.anthropic.claudefordesktop"]),
             (.writing, ["com.apple.notes", "com.apple.textedit", "com.apple.iwork.pages", "com.microsoft.word", "md.obsidian", "notion.id", "net.shinyfrog.bear", "abnerworks.typora"]),
             (.spreadsheet, ["com.apple.iwork.numbers", "com.microsoft.excel"]),
             (.creative, ["com.figma.desktop", "com.bohemiancoding.sketch3", "com.adobe.photoshop", "com.adobe.illustrator", "com.seriflabs.", "org.blenderfoundation.blender"]),
