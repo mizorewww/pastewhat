@@ -49,10 +49,14 @@ STOP_WORDS = {
     "as", "are", "was", "how", "do", "does", "then", "using",
 }
 CONTEXT_LIMITS = {
-    "appName": 256, "bundleID": 256, "windowTitle": 2_048,
+    "applicationCategory": 64, "inputSurface": 64,
     "fieldRole": 256, "fieldLabel": 2_048,
     "selectedText": 8_192, "surroundingText": 16_384,
 }
+CATEGORIES = {"browser", "development", "terminal", "mail", "messaging", "writing",
+              "spreadsheet", "creative", "file_management", "unknown"}
+SURFACES = {"unknown", "text", "recipient", "address_bar", "search", "code_editor",
+            "shell_prompt", "chat_composer", "document", "cell", "color", "file_path", "phone"}
 
 
 class InvalidRequest(ValueError):
@@ -96,9 +100,11 @@ def validate_request(raw):
         raise InvalidRequest("请求需要语境和剪贴板列表。")
     if len(entries) > MAX_ENTRIES:
         raise InvalidRequest("每次推荐最多接受 20 条剪贴板记录。")
+    if set(context) - (set(CONTEXT_LIMITS) | {"hasAccessibility", "isSecure"}):
+        raise InvalidRequest("推理语境只能包含应用类别与输入区域信息。")
     clean_context = {}
     for key, limit in CONTEXT_LIMITS.items():
-        value = context.get(key, "")
+        value = context.get(key, "unknown" if key in ("applicationCategory", "inputSurface") else "")
         clean_context[key] = bounded_string(value, limit)
         if key == "surroundingText":
             clean_context[key] = value[-limit:]
@@ -107,10 +113,8 @@ def validate_request(raw):
         if not isinstance(value, bool):
             raise InvalidRequest("语境状态格式无效。")
         clean_context[key] = value
-    process_id = context.get("processID", 0)
-    if type(process_id) is not int or not 0 <= process_id <= 2_147_483_647:
-        raise InvalidRequest("应用进程标识无效。")
-    clean_context["processID"] = process_id
+    if clean_context["applicationCategory"] not in CATEGORIES or clean_context["inputSurface"] not in SURFACES:
+        raise InvalidRequest("应用类别或输入区域类型无效。")
     clean_entries, seen = [], set()
     for entry in entries:
         if not isinstance(entry, dict) or not valid_id(entry.get("id")):
@@ -120,11 +124,22 @@ def validate_request(raw):
         seen.add(entry["id"])
         if entry.get("kind") not in KINDS:
             raise InvalidRequest("剪贴板内容类型无效。")
+        if set(entry) - {"id", "text", "kind", "capabilities", "sourceCategory"}:
+            raise InvalidRequest("候选记录不能包含应用身份信息。")
+        capabilities = entry.get("capabilities", [])
+        if (not isinstance(capabilities, list) or not 1 <= len(capabilities) <= 4
+                or any(not isinstance(item, str) or item not in {"text", "image", "file", "richText"} for item in capabilities)
+                or len(set(capabilities)) != len(capabilities)):
+            raise InvalidRequest("剪贴板表示类型无效。")
+        source_category = entry.get("sourceCategory", "unknown")
+        if not isinstance(source_category, str) or source_category not in CATEGORIES:
+            raise InvalidRequest("来源类别无效。")
         clean_entries.append({
             "id": entry["id"],
             "text": bounded_string(entry.get("text"), 8_192),
             "kind": entry["kind"],
-            "sourceApp": bounded_string(entry.get("sourceApp"), 256),
+            "capabilities": capabilities,
+            "sourceCategory": source_category,
         })
     return raw["id"], clean_context, clean_entries
 
@@ -194,8 +209,6 @@ def rank_entries(context, entries, probabilities):
     intent = explicit_kind(context)
     task = context["selectedText"] + " " + context["surroundingText"]
     context_tokens = tokens(task + " " + context["fieldLabel"])
-    if not context_tokens:
-        context_tokens = tokens(context["windowTitle"])
     target_numbers = set(re.findall(r"(?<![A-Za-z])\d{2,}(?![A-Za-z])", task))
     ranked = []
     for index, entry in enumerate(entries):
@@ -209,13 +222,9 @@ def rank_entries(context, entries, probabilities):
         precise_number = bool(target_numbers & numbers)
         kind_probability = probabilities.get(kind, 0.0)
         matches_field = intent is not None and kind == intent
-        same_app = bool(entry["sourceApp"]) and (
-            entry["sourceApp"].casefold() == context["appName"].casefold()
-        )
         score = 2.0 * kind_probability + lexical + (3.0 if precise_number else 0.0)
         if intent:
             score += 3.0 if matches_field else -1.5
-        score += 0.10 if same_app else 0.0
         score += 0.12 * (len(entries) - index) / max(1, len(entries))
         if matches_field and (lexical or precise_number):
             reason = "匹配当前输入位置与语境"
@@ -227,8 +236,6 @@ def rank_entries(context, entries, probabilities):
             reason = "符合当前输入位置需要的" + KIND_NAMES[kind]
         elif kind_probability >= 0.4:
             reason = "Laya 判断当前适合粘贴" + KIND_NAMES[kind]
-        elif same_app:
-            reason = "来自当前应用"
         else:
             reason = "最近复制的内容"
         ranked.append({"id": entry["id"], "score": round(score, 6), "reason": reason})
@@ -244,6 +251,7 @@ class RecommendationEngine:
         self.load_error = None
         self.cached_context = None
         self.cached_probabilities = None
+        self.inference_count = 0
 
     def load(self):
         if self.agent is not None:
@@ -292,21 +300,21 @@ class RecommendationEngine:
         return self.agent.tok.backend.decode(selected, skip_special_tokens=False)
 
     def bounded_context(self, context):
-        # Field and cursor context have priority; window titles receive the final budget.
+        # Identity metadata is excluded by the protocol, not merely hidden in a prompt.
         state = {
             "focused_field": self.clipped_tokens(context["fieldLabel"], 80),
             "input_role": self.clipped_tokens(context["fieldRole"], 24),
-            "application": self.clipped_tokens(context["appName"], 40),
+            "application_category": context["applicationCategory"],
+            "input_surface": context["inputSurface"],
             "selected_text": self.clipped_tokens(context["selectedText"], 144),
             "surrounding_text": self.clipped_tokens(context["surroundingText"], 384, tail=True),
-            "window": self.clipped_tokens(context["windowTitle"], 72),
         }
         empty, _ = self.agent.prepare("", TYPE_QUESTION)
         available = self.agent.cfg["max_len"] - len(empty[0]["ids"])
         encoded = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
         # Re-budget individual values instead of cutting a JSON string in the middle.
         # Retain the cursor end when reducing nearby text, including on 512-token models.
-        for key in ("window", "surrounding_text", "selected_text", "focused_field", "input_role", "application"):
+        for key in ("surrounding_text", "selected_text", "focused_field", "input_role", "input_surface", "application_category"):
             excess = len(self.agent.tok(encoded)["input_ids"]) - available
             if excess <= 0:
                 break
@@ -322,6 +330,7 @@ class RecommendationEngine:
         fingerprint = hashlib.sha256(state.encode("utf-8")).digest()
         if fingerprint == self.cached_context:
             return self.cached_probabilities
+        self.inference_count += 1
         result = self.agent.predict(state, TYPE_QUESTION)
         probabilities = result["answers"]["kind"]["probabilities"]
         if not isinstance(probabilities, dict) or any(
@@ -336,9 +345,12 @@ class RecommendationEngine:
 
     def respond(self, request_id, context, entries):
         started = time.perf_counter()
+        self.inference_count = 0
         result = {
             "id": request_id, "recommendedID": None, "rankings": [], "mode": "fallback",
             "backend": self.backend, "elapsedMS": 0.0, "message": None,
+            "decision": "empty_history", "shortlistedIDs": [entry["id"] for entry in entries],
+            "inferenceCount": 0, "appliedFacets": [],
         }
         if context["isSecure"]:
             self.cached_context = self.cached_probabilities = None
@@ -347,6 +359,10 @@ class RecommendationEngine:
                 for entry in entries
             ]
             result["message"] = "安全输入框已暂停语境推荐。"
+            result["decision"] = "secure_field"
+        elif entries and not any(context[key].strip() for key in ("fieldLabel", "selectedText", "surroundingText")):
+            result["decision"] = "insufficient_context"
+            result["message"] = "当前语境不足 · 按复制时间排列"
         elif entries:
             probabilities = {}
             try:
@@ -359,7 +375,9 @@ class RecommendationEngine:
                     self.diagnostics.flush()
             result["rankings"] = rank_entries(context, entries, probabilities)
             result["recommendedID"] = result["rankings"][0]["id"]
+            result["decision"] = "recommended"
         result["elapsedMS"] = round((time.perf_counter() - started) * 1000, 3)
+        result["inferenceCount"] = self.inference_count
         return result
 
 
@@ -367,6 +385,7 @@ def failure_response(backend, message, request_id=""):
     return {
         "id": request_id, "recommendedID": None, "rankings": [], "mode": "fallback",
         "backend": backend, "elapsedMS": 0.0, "message": message,
+        "decision": "invalid_request", "shortlistedIDs": [], "inferenceCount": 0, "appliedFacets": [],
     }
 
 

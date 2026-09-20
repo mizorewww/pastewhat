@@ -233,7 +233,11 @@ final class EngineBridge {
             }
             guard response.id == active.requestID,
                   response.recommendedID.map({ active.candidateIDs.contains($0) }) ?? true,
-                  response.rankings.allSatisfy({ active.candidateIDs.contains($0.id) }) else {
+                  response.rankings.allSatisfy({ active.candidateIDs.contains($0.id) && $0.score.isFinite }),
+                  Set(response.rankings.map(\.id)).count == response.rankings.count,
+                  response.shortlistedIDs.allSatisfy({ active.candidateIDs.contains($0) }),
+                  response.inferenceCount >= 0,
+                  (response.decision == "recommended") == (response.recommendedID != nil) else {
                 connectionFailed(generation: receivedGeneration, error: .responseMismatch)
                 return
             }
@@ -241,7 +245,7 @@ final class EngineBridge {
             timeoutTask = nil
             self.active = nil
             active.continuation.resume(returning: response)
-            onStatus?(response.mode == "laya" ? "Laya 本地推荐已就绪" : "本地匹配已就绪")
+            onStatus?(response.statusText)
             startNext()
             guard generation == receivedGeneration else { return }
         }

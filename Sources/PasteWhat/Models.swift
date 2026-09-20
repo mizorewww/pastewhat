@@ -60,7 +60,25 @@ struct ClipboardEntry: Codable, Identifiable, Sendable {
 
     var candidate: RecommendationCandidate {
         let excerpt = text.count > 2400 ? String(text.prefix(1600)) + "\n…\n" + String(text.suffix(800)) : text
-        return RecommendationCandidate(id: id.uuidString, text: excerpt, kind: kind.rawValue, sourceApp: sourceApp)
+        let types = Set(payloads.flatMap { $0.representations.keys })
+        var capabilities: [String] = []
+        if types.contains(where: { ["public.utf8-plain-text", "public.utf16-plain-text", "public.plain-text", "public.url"].contains($0) }) {
+            capabilities.append("text")
+        }
+        if types.contains(where: { ["public.png", "public.tiff", "public.jpeg", "com.compuserve.gif"].contains($0) }) {
+            capabilities.append("image")
+        }
+        if types.contains("public.file-url") { capabilities.append("file") }
+        if types.contains(where: { ["public.rtf", "com.apple.flat-rtfd", "public.html"].contains($0) }) {
+            capabilities.append("richText")
+            if !capabilities.contains("text") { capabilities.append("text") }
+        }
+        if capabilities.isEmpty {
+            capabilities = [kind == .image ? "image" : kind == .file ? "file" : "text"]
+        }
+        return RecommendationCandidate(id: id.uuidString, text: excerpt, kind: kind.rawValue,
+                                       capabilities: capabilities,
+                                       sourceCategory: ApplicationCategory.classify(bundleID: sourceBundleID ?? ""))
     }
 }
 
@@ -92,12 +110,13 @@ struct RecommendationCandidate: Codable, Sendable {
     var id: String
     var text: String
     var kind: String
-    var sourceApp: String
+    var capabilities: [String]
+    var sourceCategory: ApplicationCategory
 }
 
 struct RecommendationRequest: Codable, Sendable {
     var id: String
-    var context: AppContext
+    var context: ModelContext
     var entries: [RecommendationCandidate]
 }
 
@@ -115,6 +134,16 @@ struct RecommendationResponse: Codable, Sendable {
     var backend: String
     var elapsedMS: Double
     var message: String?
+    var decision: String
+    var shortlistedIDs: [String]
+    var inferenceCount: Int
+    var appliedFacets: [String]
+
+    var statusText: String {
+        if let message, !message.isEmpty { return message }
+        guard recommendedID != nil else { return "没有明确推荐 · 按复制时间排列" }
+        return mode == "laya" ? "Laya · \(backend.uppercased()) · 已在本机推荐" : "本地匹配 · 已找到相关内容"
+    }
 }
 
 enum AppPaths {

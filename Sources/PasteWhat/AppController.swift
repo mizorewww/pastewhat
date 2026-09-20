@@ -229,7 +229,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !entries.isEmpty, panel.isVisible, contextReady else { return }
         let id = UUID().uuidString
         requestID = id
-        let request = RecommendationRequest(id: id, context: context, entries: entries.prefix(20).map(\.candidate))
+        let request = RecommendationRequest(id: id, context: context.modelContext, entries: entries.prefix(20).map(\.candidate))
         panelController.setStatus(storageStatus ?? "Laya 正在寻找合适的内容…")
         rankingTask = Task { [weak self] in
             guard let self else { return }
@@ -237,7 +237,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let response = try await engine.rank(request)
                 guard !Task.isCancelled, requestID == id, panel.isVisible else { return }
                 panelController.setRecommendation(response)
-                let modelStatus = response.mode == "laya" ? "Laya · \(engine.configuration.backend.uppercased()) · 已在本机推荐" : (response.message ?? "本地匹配 · Laya 暂不可用")
+                let modelStatus = response.statusText
                 panelController.setStatus(storageStatus ?? (store.isPaused ? "记录已暂停 · \(modelStatus)" : modelStatus))
             } catch {
                 guard !Task.isCancelled, requestID == id, panel.isVisible else { return }

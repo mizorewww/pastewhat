@@ -380,8 +380,8 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
 
     func setRecommendation(_ response: RecommendationResponse?) {
         recommendation = response
-        engineBadge.label.stringValue = response?.mode == "laya" ? "LAYA · 本机"
-            : response?.recommendedID == nil ? "最近记录" : "本地匹配"
+        engineBadge.label.stringValue = response?.recommendedID == nil ? "最近记录"
+            : response?.mode == "laya" ? "LAYA · 本机" : "本地匹配"
         refreshList(selectRecommended: !userHasSelected)
     }
 
