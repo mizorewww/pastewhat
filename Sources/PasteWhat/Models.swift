@@ -59,7 +59,8 @@ struct ClipboardEntry: Codable, Identifiable, Sendable {
     var searchText: String { "\(text) \(sourceApp) \(kind.label)" }
 
     var candidate: RecommendationCandidate {
-        RecommendationCandidate(id: id.uuidString, text: String(text.prefix(2400)), kind: kind.rawValue, sourceApp: sourceApp)
+        let excerpt = text.count > 2400 ? String(text.prefix(1600)) + "\n…\n" + String(text.suffix(800)) : text
+        return RecommendationCandidate(id: id.uuidString, text: excerpt, kind: kind.rawValue, sourceApp: sourceApp)
     }
 }
 
