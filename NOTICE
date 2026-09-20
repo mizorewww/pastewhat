@@ -1,0 +1,13 @@
+PasteWhat uses the independently distributed Laya runtimes:
+
+- Laya-MLX: https://github.com/mizorewww/laya-mlx
+- Laya-CoreML: https://github.com/mizorewww/laya-coreml
+- Original Laya: https://github.com/NandhaKishorM/laya
+
+The original Laya models were released by Convai Innovations and contributors.
+The runtime packages and model artifacts have their own Apache-2.0 licenses and
+notices. PasteWhat imports the installed runtime packages; it does not vendor
+their model implementations or weights. Keep their LICENSE and NOTICE files
+with any redistributed model/runtime artifacts.
+
+This application is not an official release from Apple or Convai Innovations.
