@@ -1,0 +1,124 @@
+import Foundation
+
+enum ClipKind: String, Codable, CaseIterable, Sendable {
+    case text, url, email, code, command, phone, file, image, color
+
+    var label: String {
+        switch self {
+        case .text: "文本"
+        case .url: "链接"
+        case .email: "邮箱"
+        case .code: "代码"
+        case .command: "命令"
+        case .phone: "电话"
+        case .file: "文件"
+        case .image: "图片"
+        case .color: "颜色"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .text: "text.alignleft"
+        case .url: "link"
+        case .email: "envelope"
+        case .code: "chevron.left.forwardslash.chevron.right"
+        case .command: "terminal"
+        case .phone: "phone"
+        case .file: "doc"
+        case .image: "photo"
+        case .color: "paintpalette"
+        }
+    }
+}
+
+struct PasteboardPayload: Codable, Sendable {
+    var representations: [String: Data]
+}
+
+struct ClipboardEntry: Codable, Identifiable, Sendable {
+    var id: UUID = UUID()
+    var copiedAt: Date = Date()
+    var text: String
+    var kind: ClipKind
+    var sourceApp: String
+    var sourceBundleID: String?
+    var payloads: [PasteboardPayload] = []
+    var fingerprint: String = ""
+
+    var title: String {
+        let line = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+        return line.isEmpty ? kind.label : String(line.prefix(180))
+    }
+
+    var subtitle: String {
+        let lines = text.split(whereSeparator: \.isNewline)
+        return lines.count > 1 ? String(lines.dropFirst().joined(separator: " ").prefix(180)) : ""
+    }
+
+    var searchText: String { "\(text) \(sourceApp) \(kind.label)" }
+
+    var candidate: RecommendationCandidate {
+        RecommendationCandidate(id: id.uuidString, text: String(text.prefix(2400)), kind: kind.rawValue, sourceApp: sourceApp)
+    }
+}
+
+struct AppContext: Codable, Sendable {
+    var appName: String = "当前应用"
+    var bundleID: String = ""
+    var processID: Int32 = 0
+    var windowTitle: String = ""
+    var fieldRole: String = ""
+    var fieldLabel: String = ""
+    var selectedText: String = ""
+    var surroundingText: String = ""
+    var hasAccessibility: Bool = false
+    var isSecure: Bool = false
+
+    var hasFieldContext: Bool {
+        !isSecure && (!fieldLabel.isEmpty || !selectedText.isEmpty || !surroundingText.isEmpty)
+    }
+
+    var detail: String {
+        if isSecure { return "安全输入框 · 不读取输入内容" }
+        if !fieldLabel.isEmpty { return String(fieldLabel.prefix(90)) }
+        if hasFieldContext { return "已读取当前输入位置的语境" }
+        return hasAccessibility ? "当前应用语境" : "仅根据当前应用推荐"
+    }
+}
+
+struct RecommendationCandidate: Codable, Sendable {
+    var id: String
+    var text: String
+    var kind: String
+    var sourceApp: String
+}
+
+struct RecommendationRequest: Codable, Sendable {
+    var id: String
+    var context: AppContext
+    var entries: [RecommendationCandidate]
+}
+
+struct RankedCandidate: Codable, Sendable {
+    var id: String
+    var score: Double
+    var reason: String
+}
+
+struct RecommendationResponse: Codable, Sendable {
+    var id: String
+    var recommendedID: String?
+    var rankings: [RankedCandidate]
+    var mode: String
+    var backend: String
+    var elapsedMS: Double
+    var message: String?
+}
+
+enum AppPaths {
+    static var support: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("PasteWhat", isDirectory: true)
+    }
+}
