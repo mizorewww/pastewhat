@@ -16,7 +16,13 @@ Use MLX multilingual by default, with the general Core ML multilingual CPU+GPU e
 
 Exploratory synthetic checks found that a 20-way choice over IDs biased toward a fixed ID, and independent candidate yes/no scores did not yield reliable rankings. Putting complete candidates into the choice labels is also lossy: `head_max_len=256` reduces a 20-way choice to roughly 12 tokens per label. These approaches are rejected.
 
-The implemented approach uses Laya to infer a short distribution over the expected content type. It combines this soft signal with explicit field intent, lexical overlap (including CJK bigrams and URL/path/numeric fragments), content type, source app and a small recency preference. Strong field evidence wins over a contradictory model guess. Four exploratory synthetic cases passed with this approach; that is feasibility evidence, not a quality benchmark. Do not present model probabilities as recommendation accuracy. A model failure yields an honestly labeled local matching fallback.
+The current approach first projects native `AppContext` into a separate `ModelContext`: application category, focused-field metadata and nearby text. Real app names, bundle IDs, PIDs and raw window titles do not cross this boundary. Known bundle identifiers map locally to stable categories; unrecognized applications remain `unknown`. The category is a weak hint, subordinate to field/task evidence.
+
+The worker extracts actual representation capabilities, whole-value content shapes, typed entities, lexical/CJK terms, flags, negation and code structure. High-recall retrieval narrows the model-assisted ranking pool while the AppKit panel retains every history entry. Its nominal limits are 6 or 10 candidates depending on available evidence, with exact matches, ties and a small recency reserve allowed to expand the pool up to all 20. Laya predicts content type and at most two relevant semantic facets. Newness only breaks tied scores; it cannot establish a recommendation or its margin.
+
+The engine may return no recommendation for missing context, incompatible content or ambiguity. Model probabilities and evidence scores are not correctness probabilities. The independently authored 120-case synthetic evaluation found much lower false promotion and higher decision accuracy, but **answerable holdout Top-1 fell** as more cases were abstained on. The predeclared no-regression target was not met. This is a conservative policy tradeoff, not a claim of universally better semantic selection; see [the full evaluation](../evaluations/README.md).
+
+A development-only experiment with small candidate choices was sensitive to reversing option order. It is recorded and not enabled in the production path. No special mapping from one example command to an answer was added. A model failure yields an honestly labeled local matching fallback.
 
 Requests carry unique IDs and the app discards responses superseded by a newer context/history. Only bounded context and candidate excerpts go to the worker. Original clipboard payloads remain intact for pasting. Never execute clipboard text or treat it as an application command.
 
@@ -25,7 +31,7 @@ Requests carry unique IDs and the app discards responses superseded by a newer c
 - `NSStatusItem` plus an `NSPanel` created with `.nonactivatingPanel`; retain the destination PID before displaying it. Do not toggle its activation style dynamically.
 - Poll `NSPasteboard.changeCount` on a tolerant timer. Deduplicate entries, suppress our own writes, cap payload size, and skip concealed/transient clipboard types and known password-manager sources.
 - Preserve supported text, rich text, image and file URL representations, including multiple pasteboard items. Store at most 20 entries in Application Support with atomic replacement and restrictive permissions; allow pausing, deletion, clearing and disabling history persistence.
-- Read a bounded snapshot of AX focused field metadata, selection and nearby text only when available. Do not read secure fields. AX permission is optional: app-only recommendations and manual copying still work.
+- Read a bounded snapshot of AX focused field metadata, selection and nearby text only when available. Do not read secure fields. AX permission is optional: history/search/manual copying still work; category alone does not force a recommendation.
 - On macOS 15.4+, account for pasteboard access behavior and show restricted access clearly.
 - For Paste, verify AX trust and destination liveness, dismiss the panel, yield activation, wait until the intended PID is active and only then synthesize Command-V. Otherwise leave the item copied with a clear explanation. Never send Enter.
 - Register a Carbon hotkey rather than monitoring every global keystroke. Expose a conflict state and shortcut setting. Start-at-login is opt-in via `SMAppService`.
@@ -33,10 +39,12 @@ Requests carry unique IDs and the app discards responses superseded by a newer c
 ## Components
 
 - `Models`: shared Codable value types and presentation metadata.
+- `RecommendationContext`: local category mapping and the explicit inference DTO.
 - `ClipboardStore`: bounded capture, deduplication, representations and persistence.
 - `ContextReader`, `PasteController`, `GlobalHotKey`: operating-system integration.
 - `EngineBridge`: a persistent `Process`/`Pipe` JSON-lines connection, timeout/restart and stale-response handling.
-- `engine/worker.py`: real Laya loading, type inference and transparent ranking; stdout is protocol only.
+- `engine/worker.py`: real Laya loading, bounded question-specific context and a 24-entry inference cache; stdout is protocol only.
+- `engine/ranking.py`: candidate feature extraction, preselection, scoring and abstention.
 - `AppController`: main-actor orchestration, status item, destination ownership and settings.
 - AppKit panel/views: list, preview, search, actions and accessibility labels.
 
@@ -45,6 +53,8 @@ Swift Package Manager builds the executable; a script packages a regular `.app` 
 ## Validation and commits
 
 No TDD and no permanent scaffold test target. After each coherent implementation slice, build and inspect it before an atomic commit. Validate actual model loading and synthetic ranking, 20-item bounds and persistence behavior, JSON protocol failure handling, and the rendered AppKit UI. Any temporary verification scripts are removed after stabilization. Document limitations of OS permission-dependent checks rather than claiming unobserved results.
+
+The user-requested accuracy evaluation is retained as a reproducible offline dataset/runner, not a TDD scaffold. It freezes labels before tuning, projects context with actual production Swift code, compares the original worker and the final worker on identical cases, and includes no-model ablation. Evaluation never reads the real clipboard or app context.
 
 ## Documentation consulted before implementation
 
@@ -58,3 +68,5 @@ Context7 library resolution and documentation queries were run for AppKit, Core 
 - [Swift Package Manager](https://github.com/swiftlang/swift-package-manager)
 - [GitHub CLI repository creation](https://cli.github.com/manual/gh_repo_create)
 - Sibling Laya READMEs, API implementations, tokenizer preparation and published benchmark records. Short-request benchmark numbers do not describe PasteWhat's complete ranking latency.
+
+For the recommendation revision, Context7 searches for Laya and Convai Laya returned unrelated libraries. The actual sibling README, `Agent.prepare`, choice probability outputs and per-question batch behavior were inspected directly before changing inference. No unrelated library documentation was substituted.

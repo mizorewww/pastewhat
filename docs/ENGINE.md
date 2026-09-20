@@ -49,13 +49,17 @@ Model weights and Python environments are not committed to the repository. The L
 
 ## Recommendation behavior
 
-Laya predicts a distribution over eight content types: email, URL, code, command, text, phone, path and color. This distribution is a soft ranking signal. Explicit field intent, matching words or CJK bigrams, matching numbers, source app and a small recency preference determine the final order. Strong field evidence can override a contradictory model type guess.
+The Swift app keeps its native `AppContext` for display and safe paste dispatch. A separate `ModelContext` allows only application category, input surface, field role/label, selected text and surrounding text. The worker rejects identity metadata fields such as app names, bundle IDs, process IDs, raw window titles and clipboard source app names. App branding is removed from field metadata on word boundaries, not from user-authored task text: an app name that is part of the actual task is preserved. Unknown applications use `unknown` rather than a guessed type.
 
-The model sees a bounded snapshot of the destination application and input context. It does not receive all 20 clipboard entries as one choice question. The model's own tokenizer enforces its context budget, with focused-field and cursor context taking priority over the window title. The worker caches only the last context fingerprint and its type probabilities. When only history changes, it can rank again without a new model forward pass.
+Local retrieval runs **before** model-assisted ranking. It considers whole-value content shape, text/image/file/rich-text capabilities, typed entities (so an issue number is not a network port), URL structure, CJK terms, negation and command/code structure. Hard format constraints apply only to recognized input metadata. Soft task mentions cannot indiscriminately discard other formats. Candidate limits adapt to evidence; near ties and weak context can retain all 20. AppKit always keeps the complete history for display, search and manual selection.
 
-The full clipboard payload remains in the app; the worker processes excerpts. No clipboard content is executed. A secure-field context skips all model inference and content matching and returns no recommendation. Empty history also skips model loading. A missing model or inference failure returns an explicitly labeled `fallback` response with local matching, so the history remains usable.
+Laya predicts nine content types plus `unknown`: email, URL, code, command, text, phone, path, color and image. These are soft signals. When shortlisted entries differ in deployment environment or URL purpose and local context is not explicit, at most two additional structured questions may run. Each question is a real independent forward pass, so requests use at most three. All questions include an unspecified option. The model tokenizer budgets valid JSON context separately for each question and preserves cursor-near text. A bounded cache keeps only 24 hashed context/question keys and probability dictionaries.
 
-Ranking is heuristic and is not a semantic correctness guarantee. For example, word overlap cannot reliably distinguish `git branch` from `git branch -a` when the context asks for local branches. The app never executes a command or sends Return when pasting. Scores are sorting values, not recommendation probabilities.
+Evidence decides whether to promote: missing context, no compatible content and unresolved ambiguity produce `recommendedID: null`. Newness breaks ties but cannot satisfy an evidence threshold or create a margin between candidates. Text-only entries with identical text can be interchangeable; equal image/file summaries do not establish payload equivalence. An inferred type alone cannot establish which of several similar items is correct.
+
+The original payload remains in the app; the worker processes bounded excerpts and capabilities. A secure field skips all model work. Empty history and unusable context also avoid unnecessary loading. Missing-model or inference failures preserve local matching with an explicit fallback status. No clipboard content is executed, and no inference API or telemetry sends content off-device.
+
+This is a conservative recommendation policy, not a semantic correctness guarantee. The 120-case frozen evaluation improved total decision accuracy and precision, but reduced answerable holdout Top-1 through additional abstention. Laya's measured net gain over rules was small. Read [the full results and limitations](../evaluations/README.md) before interpreting an accuracy number. A small-candidate choice experiment was order-sensitive and remains disabled.
 
 ## Worker protocol
 
@@ -71,10 +75,8 @@ Requests match `RecommendationRequest` in `Sources/PasteWhat/Models.swift`:
 {
   "id": "request-1",
   "context": {
-    "appName": "Mail",
-    "bundleID": "com.apple.mail",
-    "processID": 123,
-    "windowTitle": "New Message",
+    "applicationCategory": "mail",
+    "inputSurface": "recipient",
     "fieldRole": "AXTextField",
     "fieldLabel": "Recipient",
     "selectedText": "",
@@ -83,18 +85,20 @@ Requests match `RecommendationRequest` in `Sources/PasteWhat/Models.swift`:
     "isSecure": false
   },
   "entries": [
-    {"id": "clip-1", "text": "hello@example.com", "kind": "email", "sourceApp": "Contacts"}
+    {"id": "clip-1", "text": "hello@example.com", "kind": "email", "capabilities": ["text"], "sourceCategory": "unknown"}
   ]
 }
 ```
 
-Responses contain `id`, nullable `recommendedID`, `rankings` (`id`, finite `score`, Chinese `reason`), `mode` (`laya` or `fallback`), `backend`, `elapsedMS` and nullable `message`. Entries arrive newest first. A response preserves their IDs, and ranking ties preserve their input order. The AppKit app promotes only the recommended entry, leaving the rest in chronological order.
+Responses contain `id`, nullable `recommendedID`, `rankings` (`id`, finite `score`, Chinese `reason`), `mode` (`laya` or `fallback`), `backend`, `elapsedMS`, nullable `message`, `decision`, `shortlistedIDs`, `inferenceCount` and `appliedFacets`. `mode` identifies the runtime path, not a successful recommendation. `decision` is one of `recommended`, `insufficient_context`, `ambiguous`, `no_compatible_candidate`, `secure_field`, `empty_history` or `invalid_request`. Only `recommended` has a non-null ID. Rankings may cover the shortlist rather than all history; the frontend uses only the recommendation ID to reorder its own complete list. Entries arrive newest first. A response preserves their IDs, and ranking ties preserve their input order. The AppKit app promotes only the recommended entry, leaving the rest in chronological order.
 
 The worker rejects more than 20 entries, duplicate entry IDs or JSON keys, invalid scalar types, invalid Unicode, nonfinite JSON numbers and lines over 1 MiB. Oversized lines are drained before processing the next request. Individual raw strings may contain at most 32,768 characters; candidate scoring uses at most 8,192 characters, while the app currently sends at most 2,400. Nearby context preserves the cursor end before token budgeting. Invalid requests return empty rankings and a generic message; a recoverable valid request ID is echoed.
 
 ## Validation performed
 
-After implementation, both local MLX and Core ML multilingual weights were exercised through subprocess JSONL, including Chinese recipient matching, a Git-command ambiguity, an exact issue URL and a staging endpoint. Three of the four detailed choices were correct on each backend; the ambiguous Git flags remained a documented limitation. Empty history, a secure field, long context, repeated-context caching, duplicate IDs, too many entries, malformed JSON, nonfinite numbers, invalid Unicode, oversized-line recovery and missing-model fallback were checked. These are synthetic feasibility checks, not a user-task accuracy benchmark. No scaffold test suite is retained.
+The original release exercised both runtimes on four exploratory cases and protocol/storage checks. The recommendation revision uses an independently authored and frozen 120-case dataset (40 development / 80 heldout), actual production Swift context projection, real MLX, a no-model ablation and a preselected 32-case Core ML parity subset. All raw responses, hashes, commands, split/group results and the failed holdout Top-1 guardrail are retained under `evaluations/`. Temporary experimental scripts are removed; no unit-test target is added.
+
+To evaluate local matching without loading a model, the worker accepts `--no-model`; the evaluation runner passes this flag for ablation. This is not an alternative production default. The runtime path and inference counts in results make a failed model load visible rather than silently presenting rules as model accuracy.
 
 The installer was also exercised with fresh temporary `uv` environments for both published `0.1.0` packages and existing local weights, followed by real inference through each installed runtime. Sibling reuse, exact configuration fields, `0600` configuration permissions and preservation of an existing configuration when setup fails were checked. Temporary verification environments were removed. The 512- and 1024-token budgeting paths retained valid JSON and the nearby-text cursor end.
 
