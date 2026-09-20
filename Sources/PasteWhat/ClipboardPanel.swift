@@ -358,6 +358,7 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
         _ = view
         self.context = context
         recommendation = nil
+        engineBadge.label.stringValue = "本机运行"
         userHasSelected = false
         search.stringValue = ""
         destination.stringValue = "粘贴到 \(context.appName)\(demo ? " · 演示" : "")"
@@ -379,7 +380,8 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
 
     func setRecommendation(_ response: RecommendationResponse?) {
         recommendation = response
-        engineBadge.label.stringValue = response?.mode == "laya" ? "LAYA · 本机" : "本地匹配"
+        engineBadge.label.stringValue = response?.mode == "laya" ? "LAYA · 本机"
+            : response?.recommendedID == nil ? "最近记录" : "本地匹配"
         refreshList(selectRecommended: !userHasSelected)
     }
 

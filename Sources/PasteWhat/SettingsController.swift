@@ -189,6 +189,15 @@ final class SettingsController: NSWindowController {
         guard FileManager.default.fileExists(atPath: next.modelPath + "/rl_agent_config.json") else {
             feedback.stringValue = "模型文件夹中没有 rl_agent_config.json，请选择完整的 Laya 模型。"; return
         }
+        let artifact = next.backend == "mlx" ? "model.safetensors" : "coreml_config.json"
+        guard FileManager.default.fileExists(atPath: next.modelPath + "/" + artifact) else {
+            feedback.stringValue = "模型文件夹与所选引擎不匹配，请选择对应的 multilingual 模型。"; return
+        }
+        if next.backend == "coreml" {
+            guard #available(macOS 15, *) else {
+                feedback.stringValue = "Core ML 后端需要 macOS 15 或更新版本；当前系统请使用 MLX。"; return
+            }
+        }
         do {
             try onSaveEngine?(next)
             configuration = next
