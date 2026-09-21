@@ -49,7 +49,7 @@ final class EngineBridge {
     private var timeoutTask: Task<Void, Never>?
     private let writeQueue = DispatchQueue(label: "PasteWhat.engine.input", qos: .userInitiated)
     private let readQueue = DispatchQueue(label: "PasteWhat.engine.output", qos: .userInitiated)
-    private let maximumMessageBytes = 1_048_576
+    private var maximumMessageBytes: Int { configuration.backend == "ranker" ? 4_194_304 : 1_048_576 }
 
     init(configuration: EngineConfiguration) {
         self.configuration = configuration
@@ -125,7 +125,7 @@ final class EngineBridge {
         let manager = FileManager.default
         let pythonPath = (configuration.pythonPath as NSString).expandingTildeInPath
         let modelPath = (configuration.modelPath as NSString).expandingTildeInPath
-        guard ["mlx", "coreml", "jev"].contains(configuration.backend),
+        guard ["mlx", "coreml", "jev", "ranker"].contains(configuration.backend),
               pythonPath.hasPrefix("/"), (configuration.isRemote || modelPath.hasPrefix("/")),
               manager.isExecutableFile(atPath: pythonPath) else {
             throw EngineBridgeError.invalidConfiguration
@@ -206,7 +206,7 @@ final class EngineBridge {
             closeProcess()
             throw EngineBridgeError.launchFailed
         }
-        onStatus?(configuration.isRemote ? "正在连接 Jev 云端推荐…" : "正在准备本地 Laya 模型…")
+        onStatus?(configuration.isRemote ? "正在连接 Jev 云端推荐…" : "正在准备本地 \(configuration.displayName) 模型…")
     }
 
     private func receive(_ data: Data, generation receivedGeneration: UUID) {

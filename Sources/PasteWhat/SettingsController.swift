@@ -14,7 +14,7 @@ final class SettingsController: NSWindowController {
     private let jevKeyField = NSSecureTextField()
     private let engineNote = Theme.label("", size: 11, color: .secondaryLabelColor)
     private var credentialRow: NSStackView?
-    private let backendIDs = ["mlx", "coreml", "jev"]
+    private let backendIDs = ["mlx", "coreml", "jev", "ranker"]
     private let persist = NSButton(checkboxWithTitle: "在本机保留最近 20 条记录", target: nil, action: nil)
     private let login = NSButton(checkboxWithTitle: "登录时启动 PasteWhat", target: nil, action: nil)
     private let shortcuts = NSPopUpButton()
@@ -89,7 +89,7 @@ final class SettingsController: NSWindowController {
         separator(stack)
 
         add(Theme.label("推荐引擎", size: 13, weight: .semibold), to: stack)
-        backend.addItems(withTitles: ["Laya · MLX 本地", "Laya · Core ML 本地", "Jev · 云端"])
+        backend.addItems(withTitles: ["Laya · MLX 本地", "Laya · Core ML 本地", "Jev · 云端", "PasteWhat Ranker · MLX 本地"])
         backend.selectItem(at: backendIDs.firstIndex(of: configuration.backend) ?? 0)
         backend.target = self; backend.action = #selector(backendChanged)
         add(backend, to: stack)
@@ -186,6 +186,24 @@ final class SettingsController: NSWindowController {
 
     @objc private func backendChanged() {
         updateEngineControls()
+        let selectedBackend = backendIDs[backend.indexOfSelectedItem]
+        if selectedBackend == configuration.backend {
+            pythonField.stringValue = configuration.pythonPath
+            modelField.stringValue = configuration.modelPath
+            return
+        }
+        if selectedBackend == "ranker" {
+            for workspace in EngineConfiguration.workspaceURLs {
+                let project = workspace.deletingLastPathComponent().appendingPathComponent("pastewhat-ranker-v1")
+                let python = project.appendingPathComponent(".venv/bin/python").path
+                if FileManager.default.isExecutableFile(atPath: python) {
+                    pythonField.stringValue = python
+                    modelField.stringValue = project.appendingPathComponent("artifacts/PasteWhat-Ranker-v1/mlx").path
+                    break
+                }
+            }
+            return
+        }
         guard backend.indexOfSelectedItem < 2 else { return }
         let previous = backend.indexOfSelectedItem == 0 ? "laya-coreml" : "laya-mlx"
         let selected = backend.indexOfSelectedItem == 0 ? "laya-mlx" : "laya-coreml"
@@ -194,15 +212,31 @@ final class SettingsController: NSWindowController {
             .replacingOccurrences(of: previous == "laya-mlx" ? "multilingual-mlx" : "multilingual-coreml", with: selected == "laya-mlx" ? "multilingual-mlx" : "multilingual-coreml")
         if FileManager.default.isExecutableFile(atPath: candidatePython) { pythonField.stringValue = candidatePython }
         if FileManager.default.fileExists(atPath: candidateModel) { modelField.stringValue = candidateModel }
+        if pythonField.stringValue.contains("/pastewhat-ranker-v1/") {
+            for workspace in EngineConfiguration.workspaceURLs {
+                let project = workspace.deletingLastPathComponent().appendingPathComponent(selected)
+                let python = project.appendingPathComponent(".venv/bin/python").path
+                let model = project.appendingPathComponent("models/hub/laya-multilingual-\(selectedBackend)").path
+                if FileManager.default.isExecutableFile(atPath: python), FileManager.default.fileExists(atPath: model) {
+                    pythonField.stringValue = python
+                    modelField.stringValue = model
+                    break
+                }
+            }
+        }
     }
 
     private func updateEngineControls() {
         let remote = backendIDs[backend.indexOfSelectedItem] == "jev"
         modelField.isEnabled = !remote
         credentialRow?.isHidden = !remote
-        engineNote.stringValue = remote
-            ? "保存后，输入框附近文字和预筛候选摘要会发送给 TypeSafe（Jev）。应用仅以类别表示；图片与文件原始数据不上传。密钥只存本机私有文件。"
-            : "Laya 在本机运行，不上传语境或候选。首次使用请运行 scripts/setup-engine.sh；Core ML 需 macOS 15+。"
+        if remote {
+            engineNote.stringValue = "保存后，输入框附近文字和预筛候选摘要会发送给 TypeSafe（Jev）。应用仅以类别表示；图片与文件原始数据不上传。密钥只存本机私有文件。"
+        } else if backendIDs[backend.indexOfSelectedItem] == "ranker" {
+            engineNote.stringValue = "专用模型在本机比较全部候选。请选择已发布并校准的 MLX 模型；模型不完整或校验失败时保留时间顺序。"
+        } else {
+            engineNote.stringValue = "Laya 在本机运行，不上传语境或候选。首次使用请运行 scripts/setup-engine.sh；Core ML 需 macOS 15+。"
+        }
     }
 
     @objc private func removeJevKey() {
@@ -223,7 +257,12 @@ final class SettingsController: NSWindowController {
         guard FileManager.default.isExecutableFile(atPath: next.pythonPath) else {
             feedback.stringValue = "请选择可执行的 Python 文件。"; return
         }
-        if !next.isRemote {
+        if next.backend == "ranker" {
+            let required = ["config.json", "model.safetensors", "tokenizer/tokenizer.json", "preprocess.json", "calibrator.json"]
+            guard required.allSatisfy({ FileManager.default.fileExists(atPath: next.modelPath + "/" + $0) }) else {
+                feedback.stringValue = "请选择包含模型、分词器和校准器的完整 MLX 发布文件夹。"; return
+            }
+        } else if !next.isRemote {
             guard FileManager.default.fileExists(atPath: next.modelPath + "/rl_agent_config.json") else {
                 feedback.stringValue = "模型文件夹中没有 rl_agent_config.json，请选择完整的 Laya 模型。"; return
             }
@@ -261,7 +300,7 @@ final class SettingsController: NSWindowController {
         picker.canChooseFiles = !directory
         picker.allowsMultipleSelection = false
         picker.showsHiddenFiles = true
-        picker.message = directory ? "选择已下载的 Laya multilingual 模型文件夹" : "选择安装了 Laya 的 Python 可执行文件"
+        picker.message = directory ? "选择与当前引擎对应的完整模型文件夹" : "选择安装了所选引擎的 Python 可执行文件"
         if let window {
             picker.beginSheetModal(for: window) { response in
                 if response == .OK, let path = picker.url?.path { field.stringValue = path }

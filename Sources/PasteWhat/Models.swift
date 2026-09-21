@@ -80,6 +80,14 @@ struct ClipboardEntry: Codable, Identifiable, Sendable {
                                        capabilities: capabilities,
                                        sourceCategory: ApplicationCategory.classify(bundleID: sourceBundleID ?? ""))
     }
+
+    var rankerCandidate: RecommendationCandidate {
+        var value = candidate
+        // The dedicated model shares one tokenizer-based preprocessing contract
+        // with its teacher. Do not insert the older Laya head/tail excerpt here.
+        value.text = text
+        return value
+    }
 }
 
 struct AppContext: Codable, Sendable {

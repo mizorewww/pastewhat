@@ -229,7 +229,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !entries.isEmpty, panel.isVisible, contextReady else { return }
         let id = UUID().uuidString
         requestID = id
-        let request = RecommendationRequest(id: id, context: context.modelContext, entries: entries.prefix(20).map(\.candidate))
+        let candidates = engine.configuration.backend == "ranker"
+            ? entries.prefix(20).map(\.rankerCandidate) : entries.prefix(20).map(\.candidate)
+        let request = RecommendationRequest(id: id, context: context.modelContext, entries: candidates)
         panelController.setStatus(storageStatus ?? "\(engine.configuration.displayName) 正在寻找合适的内容…")
         rankingTask = Task { [weak self] in
             guard let self else { return }

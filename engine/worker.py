@@ -87,7 +87,7 @@ def bounded_string(value, limit):
     return value[:limit]
 
 
-def validate_request(raw):
+def validate_request(raw, *, text_limit=8_192):
     if not isinstance(raw, dict) or not valid_id(raw.get("id")):
         raise InvalidRequest("请求标识无效。")
     context = raw.get("context")
@@ -132,7 +132,7 @@ def validate_request(raw):
             raise InvalidRequest("来源类别无效。")
         clean_entries.append({
             "id": entry["id"],
-            "text": bounded_string(entry.get("text"), 8_192),
+            "text": bounded_string(entry.get("text"), text_limit),
             "kind": entry["kind"],
             "capabilities": capabilities,
             "sourceCategory": source_category,
@@ -293,12 +293,13 @@ def failure_response(backend, message, request_id=""):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", choices=("mlx", "coreml", "jev"), default="mlx")
+    parser.add_argument("--backend", choices=("mlx", "coreml", "jev", "ranker"), default="mlx")
     parser.add_argument("--model", default="", help="Existing local model directory; not used by Jev")
     parser.add_argument("--no-model", action="store_true", help="Evaluate local retrieval without loading Laya")
     args = parser.parse_args()
-    if args.backend == "jev" and args.no_model:
-        parser.error("--no-model is only supported with a local backend")
+    if args.backend in {"jev", "ranker"} and args.no_model:
+        parser.error("--no-model is only supported with the original Laya backends")
+    line_limit = 4 * MAX_LINE_BYTES if args.backend == "ranker" else MAX_LINE_BYTES
     for name, value in {
         "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "TRANSFORMERS_OFFLINE": "1",
         "DO_NOT_TRACK": "1", "TOKENIZERS_PARALLELISM": "false", "PYTHONDONTWRITEBYTECODE": "1",
@@ -315,23 +316,26 @@ def main():
         if args.backend == "jev":
             from jev import JevEngine
             engine = JevEngine()
+        elif args.backend == "ranker":
+            from ranker import RankerEngine
+            engine = RankerEngine(args.model, diagnostics)
         else:
             engine = RecommendationEngine(args.backend, args.model, diagnostics, no_model=args.no_model)
         while True:
-            line = sys.stdin.buffer.readline(MAX_LINE_BYTES + 1)
+            line = sys.stdin.buffer.readline(line_limit + 1)
             if not line:
                 break
             request_id = ""
-            if len(line) > MAX_LINE_BYTES:
+            if len(line) > line_limit:
                 while line and not line.endswith(b"\n"):
-                    line = sys.stdin.buffer.readline(MAX_LINE_BYTES + 1)
+                    line = sys.stdin.buffer.readline(line_limit + 1)
                 result = failure_response(args.backend, "请求过大，请缩短语境与剪贴板摘要。")
             else:
                 try:
                     raw = json.loads(line, object_pairs_hook=unique_object, parse_constant=reject_constant)
                     if isinstance(raw, dict) and valid_id(raw.get("id")):
                         request_id = raw["id"]
-                    request_id, context, entries = validate_request(raw)
+                    request_id, context, entries = validate_request(raw, text_limit=MAX_TEXT_CHARS if args.backend == "ranker" else 8_192)
                     result = engine.respond(request_id, context, entries)
                 except InvalidRequest as error:
                     result = failure_response(args.backend, str(error), request_id)
