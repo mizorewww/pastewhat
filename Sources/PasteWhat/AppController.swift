@@ -230,7 +230,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let id = UUID().uuidString
         requestID = id
         let request = RecommendationRequest(id: id, context: context.modelContext, entries: entries.prefix(20).map(\.candidate))
-        panelController.setStatus(storageStatus ?? "Laya 正在寻找合适的内容…")
+        panelController.setStatus(storageStatus ?? "\(engine.configuration.displayName) 正在寻找合适的内容…")
         rankingTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -242,7 +242,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
             } catch {
                 guard !Task.isCancelled, requestID == id, panel.isVisible else { return }
                 panelController.setRecommendation(nil)
-                panelController.setStatus(storageStatus ?? "按复制时间排列 · 请在设置中配置 Laya")
+                panelController.setStatus(storageStatus ?? "按复制时间排列 · 请在设置中检查推荐引擎")
             }
         }
     }

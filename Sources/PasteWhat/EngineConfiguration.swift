@@ -6,6 +6,9 @@ struct EngineConfiguration: Codable, Sendable, Equatable {
     var pythonPath: String
     var modelPath: String
 
+    var isRemote: Bool { backend == "jev" }
+    var displayName: String { isRemote ? "Jev" : "Laya" }
+
     static func discover() -> Self {
         let configurationURL = AppPaths.support.appendingPathComponent("engine.json")
         if let data = try? Data(contentsOf: configurationURL),

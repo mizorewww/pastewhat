@@ -138,6 +138,25 @@ struct RecommendationResponse: Codable, Sendable {
     var shortlistedIDs: [String]
     var inferenceCount: Int
     var appliedFacets: [String]
+    var modelVersion: String?
+
+    var engineLabel: String {
+        switch mode {
+        case "jev": "JEV · 云端"
+        case "ranker": "RANKER · 本机"
+        case "laya": "LAYA · 本机"
+        default: "本地匹配"
+        }
+    }
+
+    var recommendationTitle: String {
+        switch mode {
+        case "jev": "Jev 为此刻推荐"
+        case "ranker": "PasteWhat Ranker 为此刻推荐"
+        case "laya": "Laya 为此刻推荐"
+        default: "根据当前语境匹配"
+        }
+    }
 
     var statusText: String {
         if let message, !message.isEmpty { return message }

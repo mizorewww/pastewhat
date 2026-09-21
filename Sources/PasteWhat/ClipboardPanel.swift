@@ -358,7 +358,7 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
         _ = view
         self.context = context
         recommendation = nil
-        engineBadge.label.stringValue = "本机运行"
+        engineBadge.label.stringValue = "最近记录"
         userHasSelected = false
         search.stringValue = ""
         destination.stringValue = "粘贴到 \(context.appName)\(demo ? " · 演示" : "")"
@@ -381,7 +381,7 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
     func setRecommendation(_ response: RecommendationResponse?) {
         recommendation = response
         engineBadge.label.stringValue = response?.recommendedID == nil ? "最近记录"
-            : response?.mode == "laya" ? "LAYA · 本机" : "本地匹配"
+            : response?.engineLabel ?? "本地匹配"
         refreshList(selectRecommended: !userHasSelected)
     }
 
@@ -427,7 +427,7 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
         let entry = visibleEntries[row]
         let cell = ClipCellView()
         cell.configure(entry, selected: row == table.selectedRow, recommended: isRecommended(row),
-                       laya: recommendation?.mode == "laya", index: row)
+                       recommendationLabel: recommendation?.recommendationTitle ?? "语境匹配", index: row)
         return cell
     }
 
@@ -456,8 +456,8 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
             previewText.string = ""
             previewImage.isHidden = true
             previewScroll.isHidden = false
-            reasonTitle.stringValue = "只在你的 Mac 上"
-            reasonLabel.stringValue = "最近 20 条内容保留在本机，推荐也在本机完成。"
+            reasonTitle.stringValue = "随时找回最近内容"
+            reasonLabel.stringValue = "最近 20 条保留在本机。可在设置中选择本地模型或 Jev 云端推荐。"
             copyButton.isEnabled = false; pasteButton.isEnabled = false; deleteButton.isEnabled = false
             return
         }
@@ -488,7 +488,7 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
         previewImage.isHidden = previewImage.image == nil
         previewScroll.isHidden = previewImage.image != nil
         if entry.id.uuidString == recommendation?.recommendedID {
-            reasonTitle.stringValue = recommendation?.mode == "laya" ? "Laya 为此刻推荐" : "根据当前语境匹配"
+            reasonTitle.stringValue = recommendation?.recommendationTitle ?? "根据当前语境匹配"
             reasonLabel.stringValue = recommendation?.rankings.first(where: { $0.id == entry.id.uuidString })?.reason ?? "结合当前应用、内容类型和复制时间。"
         } else {
             reasonTitle.stringValue = "保留原始内容"
@@ -583,13 +583,13 @@ private final class ClipCellView: NSTableCellView {
 
     required init?(coder: NSCoder) { nil }
 
-    func configure(_ entry: ClipboardEntry, selected: Bool, recommended: Bool, laya: Bool, index: Int) {
+    func configure(_ entry: ClipboardEntry, selected: Bool, recommended: Bool, recommendationLabel: String, index: Int) {
         self.recommended = recommended
         icon.image = NSImage(systemSymbolName: entry.kind.symbol, accessibilityDescription: entry.kind.label)
         icon.contentTintColor = recommended ? Theme.accent : .secondaryLabelColor
         titleLabel.stringValue = entry.title
         detailLabel.stringValue = "\(entry.sourceApp) · \(entry.kind.label)"
-        badge.stringValue = laya ? "✦  LAYA 为此刻推荐" : "✦  语境匹配"
+        badge.stringValue = "✦  \(recommendationLabel)"
         badge.isHidden = !recommended
         shortcut.stringValue = index < 9 ? "⌘\(index + 1)" : ""
         setSelected(selected)

@@ -11,6 +11,10 @@ final class SettingsController: NSWindowController {
     private let backend = NSPopUpButton()
     private let pythonField = NSTextField()
     private let modelField = NSTextField()
+    private let jevKeyField = NSSecureTextField()
+    private let engineNote = Theme.label("", size: 11, color: .secondaryLabelColor)
+    private var credentialRow: NSStackView?
+    private let backendIDs = ["mlx", "coreml", "jev"]
     private let persist = NSButton(checkboxWithTitle: "在本机保留最近 20 条记录", target: nil, action: nil)
     private let login = NSButton(checkboxWithTitle: "登录时启动 PasteWhat", target: nil, action: nil)
     private let shortcuts = NSPopUpButton()
@@ -21,7 +25,7 @@ final class SettingsController: NSWindowController {
 
     init(configuration: EngineConfiguration) {
         self.configuration = configuration
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 604),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 678),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "PasteWhat 设置"
         window.isReleasedWhenClosed = false
@@ -55,7 +59,7 @@ final class SettingsController: NSWindowController {
         ])
 
         add(Theme.label("让粘贴顺着你的思路。", size: 21, weight: .bold), to: stack)
-        add(Theme.label("内容与推理都在这台 Mac 上。", size: 12, color: .secondaryLabelColor), to: stack)
+        add(Theme.label("保留最近内容，选择适合你的推荐方式。", size: 12, color: .secondaryLabelColor), to: stack)
         separator(stack)
         add(Theme.label("日常使用", size: 13, weight: .semibold), to: stack)
         persist.state = UserDefaults.standard.bool(forKey: "rememberHistory") ? .on : .off
@@ -84,9 +88,9 @@ final class SettingsController: NSWindowController {
         add(permissionInfo, to: stack)
         separator(stack)
 
-        add(Theme.label("Laya 本地引擎", size: 13, weight: .semibold), to: stack)
-        backend.addItems(withTitles: ["MLX · multilingual", "Core ML · multilingual"])
-        backend.selectItem(at: configuration.backend == "coreml" ? 1 : 0)
+        add(Theme.label("推荐引擎", size: 13, weight: .semibold), to: stack)
+        backend.addItems(withTitles: ["Laya · MLX 本地", "Laya · Core ML 本地", "Jev · 云端"])
+        backend.selectItem(at: backendIDs.firstIndex(of: configuration.backend) ?? 0)
         backend.target = self; backend.action = #selector(backendChanged)
         add(backend, to: stack)
         pythonField.stringValue = configuration.pythonPath
@@ -100,9 +104,20 @@ final class SettingsController: NSWindowController {
         }
         add(pathRow(label: "Python", field: pythonField, action: #selector(choosePython)), to: stack)
         add(pathRow(label: "模型", field: modelField, action: #selector(chooseModel)), to: stack)
-        let engineNote = Theme.label("首次使用请运行 scripts/setup-engine.sh。Core ML 需 macOS 15+；不使用 L96 ANE 模型。", size: 11, color: .secondaryLabelColor)
-        engineNote.maximumNumberOfLines = 2
+        jevKeyField.placeholderString = EngineCredentials.hasJevKey ? "密钥已保存；留空保持现有密钥" : "输入 Jev API Key"
+        jevKeyField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        let keyLabel = Theme.label("API Key", size: 12)
+        keyLabel.widthAnchor.constraint(equalToConstant: 46).isActive = true
+        let removeKey = Theme.button("移除密钥", target: self, action: #selector(removeJevKey))
+        removeKey.setContentHuggingPriority(.required, for: .horizontal)
+        let keyRow = NSStackView(views: [keyLabel, jevKeyField, removeKey])
+        keyRow.spacing = 10
+        credentialRow = keyRow
+        add(keyRow, to: stack)
+        engineNote.maximumNumberOfLines = 4
+        engineNote.lineBreakMode = .byWordWrapping
         add(engineNote, to: stack)
+        updateEngineControls()
         let save = Theme.button("保存并重新连接", symbol: "arrow.clockwise", target: self, action: #selector(saveEngine))
         let clear = Theme.button("清空历史…", target: self, action: #selector(clearClicked))
         let actions = NSStackView(views: [clear, NSView(), save])
@@ -170,6 +185,8 @@ final class SettingsController: NSWindowController {
     }
 
     @objc private func backendChanged() {
+        updateEngineControls()
+        guard backend.indexOfSelectedItem < 2 else { return }
         let previous = backend.indexOfSelectedItem == 0 ? "laya-coreml" : "laya-mlx"
         let selected = backend.indexOfSelectedItem == 0 ? "laya-mlx" : "laya-coreml"
         let candidatePython = pythonField.stringValue.replacingOccurrences(of: "/\(previous)/", with: "/\(selected)/")
@@ -179,19 +196,41 @@ final class SettingsController: NSWindowController {
         if FileManager.default.fileExists(atPath: candidateModel) { modelField.stringValue = candidateModel }
     }
 
+    private func updateEngineControls() {
+        let remote = backendIDs[backend.indexOfSelectedItem] == "jev"
+        modelField.isEnabled = !remote
+        credentialRow?.isHidden = !remote
+        engineNote.stringValue = remote
+            ? "保存后，输入框附近文字和预筛候选摘要会发送给 TypeSafe（Jev）。应用仅以类别表示；图片与文件原始数据不上传。密钥只存本机私有文件。"
+            : "Laya 在本机运行，不上传语境或候选。首次使用请运行 scripts/setup-engine.sh；Core ML 需 macOS 15+。"
+    }
+
+    @objc private func removeJevKey() {
+        do {
+            try EngineCredentials.removeJevKey()
+            jevKeyField.stringValue = ""
+            jevKeyField.placeholderString = "输入 Jev API Key"
+            // Restart the worker so an in-memory remote response cannot outlive key removal.
+            try onSaveEngine?(configuration)
+            feedback.stringValue = "Jev 密钥已移除。"
+        } catch { feedback.stringValue = "无法移除密钥，请检查本机文件权限。" }
+    }
+
     @objc private func saveEngine() {
-        let next = EngineConfiguration(backend: backend.indexOfSelectedItem == 0 ? "mlx" : "coreml",
+        let next = EngineConfiguration(backend: backendIDs[backend.indexOfSelectedItem],
                                        pythonPath: (pythonField.stringValue as NSString).expandingTildeInPath,
                                        modelPath: (modelField.stringValue as NSString).expandingTildeInPath)
         guard FileManager.default.isExecutableFile(atPath: next.pythonPath) else {
             feedback.stringValue = "请选择可执行的 Python 文件。"; return
         }
-        guard FileManager.default.fileExists(atPath: next.modelPath + "/rl_agent_config.json") else {
-            feedback.stringValue = "模型文件夹中没有 rl_agent_config.json，请选择完整的 Laya 模型。"; return
-        }
-        let artifact = next.backend == "mlx" ? "model.safetensors" : "coreml_config.json"
-        guard FileManager.default.fileExists(atPath: next.modelPath + "/" + artifact) else {
-            feedback.stringValue = "模型文件夹与所选引擎不匹配，请选择对应的 multilingual 模型。"; return
+        if !next.isRemote {
+            guard FileManager.default.fileExists(atPath: next.modelPath + "/rl_agent_config.json") else {
+                feedback.stringValue = "模型文件夹中没有 rl_agent_config.json，请选择完整的 Laya 模型。"; return
+            }
+            let artifact = next.backend == "mlx" ? "model.safetensors" : "coreml_config.json"
+            guard FileManager.default.fileExists(atPath: next.modelPath + "/" + artifact) else {
+                feedback.stringValue = "模型文件夹与所选引擎不匹配，请选择对应的 multilingual 模型。"; return
+            }
         }
         if next.backend == "coreml" {
             guard #available(macOS 15, *) else {
@@ -199,9 +238,17 @@ final class SettingsController: NSWindowController {
             }
         }
         do {
+            if next.isRemote {
+                if !jevKeyField.stringValue.isEmpty { try EngineCredentials.saveJevKey(jevKeyField.stringValue) }
+                guard EngineCredentials.hasJevKey else {
+                    feedback.stringValue = "请先输入 Jev API Key。"; return
+                }
+            }
             try onSaveEngine?(next)
             configuration = next
-            feedback.stringValue = "配置已保存；下次打开剪贴板时加载模型。"
+            jevKeyField.stringValue = ""
+            jevKeyField.placeholderString = EngineCredentials.hasJevKey ? "密钥已保存；留空保持现有密钥" : "输入 Jev API Key"
+            feedback.stringValue = next.isRemote ? "已启用 Jev；下次推荐会发送语境和预筛候选摘要。" : "配置已保存；下次打开剪贴板时加载模型。"
         } catch { feedback.stringValue = "保存失败：\(error.localizedDescription)" }
     }
 

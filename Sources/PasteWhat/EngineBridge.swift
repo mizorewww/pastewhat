@@ -20,7 +20,7 @@ enum EngineBridgeError: LocalizedError {
         case .invalidResponse: "推荐引擎返回了无效响应，下次推荐时会重新启动。"
         case .responseMismatch: "推荐结果与当前请求不一致，已丢弃。"
         case .oversizedMessage: "推荐请求或响应超过大小限制。"
-        case .timeout: "本地模型响应超时，请检查模型设置后重试。"
+        case .timeout: "推荐引擎响应超时，请检查设置后重试。"
         }
     }
 }
@@ -86,7 +86,7 @@ final class EngineBridge {
 
     func stop() {
         failAll(CancellationError())
-        onStatus?("本地推荐引擎已停止")
+        onStatus?("推荐引擎已停止")
     }
 
     private func startNext() {
@@ -125,8 +125,8 @@ final class EngineBridge {
         let manager = FileManager.default
         let pythonPath = (configuration.pythonPath as NSString).expandingTildeInPath
         let modelPath = (configuration.modelPath as NSString).expandingTildeInPath
-        guard ["mlx", "coreml"].contains(configuration.backend),
-              pythonPath.hasPrefix("/"), modelPath.hasPrefix("/"),
+        guard ["mlx", "coreml", "jev"].contains(configuration.backend),
+              pythonPath.hasPrefix("/"), (configuration.isRemote || modelPath.hasPrefix("/")),
               manager.isExecutableFile(atPath: pythonPath) else {
             throw EngineBridgeError.invalidConfiguration
         }
@@ -206,7 +206,7 @@ final class EngineBridge {
             closeProcess()
             throw EngineBridgeError.launchFailed
         }
-        onStatus?("正在准备本地 Laya 模型…")
+        onStatus?(configuration.isRemote ? "正在连接 Jev 云端推荐…" : "正在准备本地 Laya 模型…")
     }
 
     private func receive(_ data: Data, generation receivedGeneration: UUID) {
