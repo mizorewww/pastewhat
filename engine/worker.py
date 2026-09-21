@@ -293,10 +293,12 @@ def failure_response(backend, message, request_id=""):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", choices=("mlx", "coreml"), default="mlx")
-    parser.add_argument("--model", required=True, help="Existing local model directory")
+    parser.add_argument("--backend", choices=("mlx", "coreml", "jev"), default="mlx")
+    parser.add_argument("--model", default="", help="Existing local model directory; not used by Jev")
     parser.add_argument("--no-model", action="store_true", help="Evaluate local retrieval without loading Laya")
     args = parser.parse_args()
+    if args.backend == "jev" and args.no_model:
+        parser.error("--no-model is only supported with a local backend")
     for name, value in {
         "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "TRANSFORMERS_OFFLINE": "1",
         "DO_NOT_TRACK": "1", "TOKENIZERS_PARALLELISM": "false", "PYTHONDONTWRITEBYTECODE": "1",
@@ -310,7 +312,11 @@ def main():
          open(os.devnull, "w") as quiet:
         os.dup2(quiet.fileno(), sys.stdout.fileno())
         os.dup2(quiet.fileno(), sys.stderr.fileno())
-        engine = RecommendationEngine(args.backend, args.model, diagnostics, no_model=args.no_model)
+        if args.backend == "jev":
+            from jev import JevEngine
+            engine = JevEngine()
+        else:
+            engine = RecommendationEngine(args.backend, args.model, diagnostics, no_model=args.no_model)
         while True:
             line = sys.stdin.buffer.readline(MAX_LINE_BYTES + 1)
             if not line:
