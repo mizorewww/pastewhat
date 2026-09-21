@@ -1,4 +1,6 @@
-# Local recommendation engine
+# Recommendation engines
+
+The default Laya path is local. An explicit Jev backend is also available in Settings; it sends bounded input context and preselected candidate excerpts to TypeSafe. The history UI retains all entries. See [Jev evaluation](../evaluations/JEV.md) for measured tradeoffs.
 
 PasteWhat runs a persistent Python worker with a real Laya model. Its UI and macOS integration are AppKit. MLX multilingual is the default; the general Core ML multilingual model is available with CPU + GPU compute. The short-context ANE exports are not supported for this task.
 
@@ -10,7 +12,7 @@ On an Apple silicon Mac with [uv](https://docs.astral.sh/uv/getting-started/inst
 scripts/setup-engine.sh
 ```
 
-This creates a Python 3.12 environment at `~/Library/Application Support/PasteWhat/runtime`, installs `laya-mlx==0.1.0`, downloads `aac6fef/laya-multilingual-mlx` into the `Models` subdirectory, and atomically writes `engine.json` with owner-only permissions. Downloading happens during setup. The worker forces offline model loading and has no network inference API or telemetry.
+This creates a Python 3.12 environment at `~/Library/Application Support/PasteWhat/runtime`, installs `laya-mlx==0.1.0`, downloads `aac6fef/laya-multilingual-mlx` into the `Models` subdirectory, and atomically writes `engine.json` with owner-only permissions. Downloading happens during setup. Laya forces offline model loading and has no inference telemetry. Jev is a separately selected remote API backend.
 
 To use Core ML instead:
 
@@ -57,7 +59,17 @@ Laya predicts nine content types plus `unknown`: email, URL, code, command, text
 
 Evidence decides whether to promote: missing context, no compatible content and unresolved ambiguity produce `recommendedID: null`. Newness breaks ties but cannot satisfy an evidence threshold or create a margin between candidates. Text-only entries with identical text can be interchangeable; equal image/file summaries do not establish payload equivalence. An inferred type alone cannot establish which of several similar items is correct.
 
-The original payload remains in the app; the worker processes bounded excerpts and capabilities. A secure field skips all model work. Empty history and unusable context also avoid unnecessary loading. Missing-model or inference failures preserve local matching with an explicit fallback status. No clipboard content is executed, and no inference API or telemetry sends content off-device.
+The original payload remains in the app; the worker processes bounded excerpts and capabilities. A secure field skips all model work. Empty history and unusable context also avoid unnecessary loading. Missing Laya models or local inference failures preserve local matching with an explicit fallback status. No clipboard content is executed. Laya stays offline; Jev sends excerpts only when selected and returns no recommendation on API failure.
+
+## Jev
+
+`--backend jev` uses the documented `https://api.typesafe.ai/v1/systemone` endpoint and `jev-latest`. It uses the same local preselection, then one Choice question over candidate descriptions plus `abstain`. Option indices are mapped back to original IDs locally. A `0.5` confidence gate is an uncalibrated ambiguity threshold, not a probability-of-correctness guarantee.
+
+The Python stdlib client bounds response size, rejects redirects, applies a 12-second socket timeout, validates choice membership and finite probability distributions, and never logs response bodies. It caches at most 24 responses by a digest of the complete model request. Cancellation terminates the worker; no stale response can update a later presentation. API errors retain chronological history and show a specific status. Interactive requests do not automatically retry or multiply quota use.
+
+Credentials come from `TYPESAFE_API_KEY` or `~/Library/Application Support/PasteWhat/credentials/jev.key`. The app saves this file by atomic replacement with `0600` permissions in a `0700` directory; the worker rejects symlinks, foreign ownership and permissive file modes. This is a private local file, not encrypted storage. App settings never redisplay the secret and allow removal. No key belongs in `engine.json` or a command-line argument.
+
+Documentation was checked with Context7 (`/browser-use/jev-ultrafast`) and the primary [TypeSafe API reference](https://docs.typesafe.ai/api), [Choice guide](https://docs.typesafe.ai/primitives/choice), and [confidence definition](https://docs.typesafe.ai/confidence). The real integration returned `jev-1.13.0`. Model aliases can change; evaluation records observed versions.
 
 This is a conservative recommendation policy, not a semantic correctness guarantee. The 120-case frozen evaluation improved total decision accuracy and precision, but reduced answerable holdout Top-1 through additional abstention. Laya's measured net gain over rules was small. Read [the full results and limitations](../evaluations/README.md) before interpreting an accuracy number. A small-candidate choice experiment was order-sensitive and remains disabled.
 

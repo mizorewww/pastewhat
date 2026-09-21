@@ -2,9 +2,9 @@
 
 **下一次粘贴，刚刚好。**
 
-一个纯 AppKit 界面的 macOS 菜单栏剪贴板工具。结合当前应用、输入框语境与本地 **Laya** 模型，从最近 20 条记录中推荐此刻需要的内容，并放在首位。
+一个纯 AppKit 界面的 macOS 菜单栏剪贴板工具。结合应用类别、输入框语境与 **Laya 本地模型**或可选 **Jev 云端模型**，从最近 20 条记录中推荐此刻需要的内容，并放在首位。
 
-Native AppKit clipboard history with contextual, on-device Laya recommendations.
+Native AppKit clipboard history with contextual Laya recommendations and an opt-in Jev API backend.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/pastewhat-dark.jpg">
@@ -19,7 +19,7 @@ Native AppKit clipboard history with contextual, on-device Laya recommendations.
 - 记录最近 **20 条不同的复制内容**，重复内容更新到最新位置。
 - 支持文本、链接、邮箱、代码、命令、颜色、PNG/TIFF、文件 URL 和常见富文本表示。多文件复制作为一条记录保留；单条所有表示合计最多 8 MiB。
 - 打开时锁定目标应用，再读取可用的聚焦输入框语境；不抓屏。
-- 后台先预筛候选，Laya 推荐项置首；前端仍保留完整历史，其余记录维持复制时间顺序。开始选择后，异步推荐不会换掉选中的条目。
+- 后台先预筛候选，推荐项置首；前端仍保留完整历史，其余记录维持复制时间顺序。开始选择后，异步推荐不会换掉选中的条目。
 - 搜索内容、来源和类型；查看文字或图片预览；复制原格式或纯文本，粘贴回原应用。
 - 浅色、深色、跟随系统；可暂停记录、删除记录、清空历史、关闭磁盘保存和启用登录启动。
 
@@ -60,9 +60,19 @@ open dist/PasteWhat.app
 ./scripts/setup-engine.sh --backend coreml
 ```
 
-安装配置位于 `~/Library/Application Support/PasteWhat/engine.json`。安装后重新启动应用；在设置中修改路径后点击“保存并重新连接”即可。模型不包含在 Git 仓库或 `.app` 中。首次下载约数百 MB；常规推荐强制离线运行，不上传剪贴板或语境。
+安装配置位于 `~/Library/Application Support/PasteWhat/engine.json`。安装后重新启动应用；在设置中修改路径后点击“保存并重新连接”即可。模型不包含在 Git 仓库或 `.app` 中。首次下载约数百 MB；Laya 后端强制离线运行，不上传剪贴板或语境。
 
 Core ML 请使用通用 `laya-multilingual-coreml`，不能使用 96-token 的 ANE 模型。它的短请求速度数据不适用于这个产品的上下文任务。更多说明见 [引擎文档](docs/ENGINE.md)。
+
+### Jev 云端引擎
+
+在设置中选择 **Jev · 云端**，填入 [TypeSafe API Key](https://docs.typesafe.ai/introduction/quickstart)，点击“保存并重新连接”。已有 Python 3 即可运行此后端，不需要下载 Laya 权重。密钥保存在本机 `credentials/jev.key`，目录权限 `0700`、文件权限 `0600`；可以在设置中移除。CLI 也支持 `TYPESAFE_API_KEY` 环境变量。
+
+启用后，应用类别、输入框附近文字及预筛候选摘要会发送到 `api.typesafe.ai`；不发送真实应用身份、原始图片或文件数据。列表仍展示全部历史。请求失败会保留时间顺序，界面明确区分云端推荐与本机推荐。API 使用 `jev-latest`，实际返回版本记录在评估结果中。
+
+首轮 120 例合成回归中，Jev 的推荐精度为 **74/75（98.67%）**、覆盖率 **75/120（62.50%）**，可推荐样例实际命中 **74/97（76.29%）**；并非“整体准确率 98.67%”。同一全量集合上原本地流程命中 77/97，说明当前 Jev 阈值更保守。详见 [Jev 回归报告](evaluations/JEV.md)。
+
+专用本地学生模型的训练工程与独立评估在 [PasteWhat-Ranker-v1](https://github.com/mizorewww/pastewhat-ranker-v1)，发布状态以该仓库和模型卡为准。
 
 ### 系统权限
 
@@ -90,9 +100,11 @@ macOS 15.4+ 还可能单独询问剪贴板读取权限。持续记录需要允�
 
 ## 推荐如何工作
 
-Laya 是结构化决策模型，不生成粘贴内容。Swift 先把真实应用映射为浏览器、开发工具、终端、邮件等类别；模型请求中不包含应用名称、bundle ID、PID 或完整窗口标题。输入框和光标附近的语境优先于应用类别，真实应用信息保留在界面与粘贴目标校验中。
+Laya 与 Jev 都只选择既有内容，不生成粘贴文本。Swift 先把真实应用映射为浏览器、开发工具、终端、邮件等类别；模型请求中不包含应用名称、bundle ID、PID 或完整窗口标题。输入框和光标附近的语境优先于应用类别，真实应用信息保留在界面与粘贴目标校验中。
 
 后台根据格式能力、明确字段约束、实体和文字匹配预筛候选，保留命令参数、否定条件与内容结构。候选数量自适应；证据不足时可保留全部 20 条。再结合 Laya 的类型和按需语义判断排序。新近度只用于同分时排序，不能单独构成推荐依据；没有明确答案或多个候选接近时不强行置顶。前端列表、搜索和手动粘贴始终覆盖完整历史。
+
+Jev 后端对同一预筛候选进行一次结构化选择，包含弃权选项。它的置信度门槛是未经本产品校准的保守歧义门槛，不承诺固定正确率。
 
 模型概率不作为“推荐正确率”展示。早期 4 个样例仅用于探索，现有独立合成数据、冻结哈希、真实模型对照和无模型消融见 [推荐评估](evaluations/README.md)。合成评估不能替代真实用户使用效果。
 

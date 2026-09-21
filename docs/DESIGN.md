@@ -10,7 +10,7 @@ The panel has a quiet translucent surface, a clear destination strip, search, a 
 
 The sibling `laya-mlx` and `laya-coreml` repositories implement structured decision models, not text generation. Multilingual supports Chinese and a 1024-token total context. Both packages already provide validated tokenization, input preparation, inference and calibration. Reuse their Python APIs through a persistent subprocess; AppKit owns every UI and macOS integration. Do not port a tokenizer or inference graph speculatively.
 
-Use MLX multilingual by default, with the general Core ML multilingual CPU+GPU export as an optional backend. The published ANE L96 model has only 96 total tokens and is inappropriate for this task. Model files remain outside Git. Load locally; no inference-time model downloads, network API or telemetry.
+Use MLX multilingual by default, with the general Core ML multilingual CPU+GPU export as an optional backend. The published ANE L96 model has only 96 total tokens and is inappropriate for this task. Model files remain outside Git. Local backends never download at inference time. An explicitly selected Jev backend sends projected context and candidate excerpts to TypeSafe; settings disclose this and the UI labels cloud recommendations.
 
 ### Recommendation quality
 
