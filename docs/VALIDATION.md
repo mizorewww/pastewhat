@@ -1,6 +1,14 @@
 # Implementation validation
 
-Validation followed implementation. No TDD, permanent test target, fake worker or scaffold test files remain in the repository. Temporary fixtures used synthetic data and were deleted after the checks. The subsequently requested accuracy dataset and offline evaluation runner are retained under `evaluations/` for reproducibility.
+Validation followed implementation. No TDD, permanent test target, fake worker or scaffold test files remain in the repository. Temporary fixtures used synthetic data and were deleted after the checks. The requested accuracy dataset and evaluation runner are retained under `evaluations/` for reproducibility. Jev evaluation intentionally sends synthetic fixtures to its API; local evaluations stay offline.
+
+## Jev and dedicated ranker integration
+
+Jev completed 120 frozen synthetic cases using the actual API (`jev-1.13.0`), with no service failures. Results and the precision/coverage tradeoff are in [JEV.md](../evaluations/JEV.md). Boundary checks verified cache reuse, secure/empty/absent-context bypass and malformed response rejection. These were inline checks; no scaffold files remain.
+
+The release `.app` was exercised with isolated demo content through the native settings UI: selecting Jev, saving an existing local credential without redisplaying it, reopening the panel, observing the `JEV · 云端` badge and the correct staging webhook at the top, and retaining all eight demo entries. No real clipboard text was sent by this validation. No cross-app paste was performed in this phase.
+
+The dedicated ranker adapter is implemented and builds with warnings as errors. It passes complete candidate groups and full stored text summaries to the shared student tokenizer, loads a weight-bound calibrator, and refuses incomplete/unaccepted calibration artifacts. Secure/empty bypass, preservation of a 32,000-character candidate and missing-artifact fallback were checked. **These adapter checks are not evidence that the student model has finished training or passed acceptance.** Training and independent final evaluation are tracked in [the model repository](https://github.com/mizorewww/pastewhat-ranker-v1).
 
 ## Environment
 

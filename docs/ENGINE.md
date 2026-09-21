@@ -71,6 +71,14 @@ Credentials come from `TYPESAFE_API_KEY` or `~/Library/Application Support/Paste
 
 Documentation was checked with Context7 (`/browser-use/jev-ultrafast`) and the primary [TypeSafe API reference](https://docs.typesafe.ai/api), [Choice guide](https://docs.typesafe.ai/primitives/choice), and [confidence definition](https://docs.typesafe.ai/confidence). The real integration returned `jev-1.13.0`. Model aliases can change; evaluation records observed versions.
 
+## Dedicated PasteWhat ranker
+
+Settings also supports `PasteWhat Ranker · MLX 本地` (`--backend ranker`). Select a Python environment containing `pastewhat_ranker` and the complete calibrated MLX artifact directory. The sibling project's `.venv/bin/python` and `artifacts/PasteWhat-Ranker-v1/mlx` are discovered when present. Model publication/acceptance status is tracked separately in [the training repository](https://github.com/mizorewww/pastewhat-ranker-v1).
+
+This adapter intentionally retains the complete 1–20 candidate group, because the dedicated model learns ranking and abstention from the whole group. It does not reuse the older heuristic shortlist or 2,400-character head/tail excerpt. The stored text summary is bounded at 32,000 characters; a 4 MiB protocol limit accommodates all 20 entries. Shared model preprocessing then applies the training token budgets. Original clipboard payloads remain native.
+
+`calibrator.json` must bind the deployed weight and preprocessing hashes and meet the registered observed calibration target. The app calls the same `apply_calibration` function as the independent evaluator. Missing/mismatched artifacts preserve chronological history with a status; an initialized or merely trained model without accepted calibration is never silently used as an accepted release. Scores are not displayed as guarantees of real-user accuracy.
+
 This is a conservative recommendation policy, not a semantic correctness guarantee. The 120-case frozen evaluation improved total decision accuracy and precision, but reduced answerable holdout Top-1 through additional abstention. Laya's measured net gain over rules was small. Read [the full results and limitations](../evaluations/README.md) before interpreting an accuracy number. A small-candidate choice experiment was order-sensitive and remains disabled.
 
 ## Worker protocol
