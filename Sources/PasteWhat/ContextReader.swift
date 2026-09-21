@@ -48,6 +48,7 @@ private enum AXContextSnapshot {
             if !label.isEmpty { context.fieldLabel = label; break }
         }
         var selection: CFRange?
+        var windowSelection: NSRange?
         if let raw = reader.value(focused, kAXSelectedTextRangeAttribute as CFString),
            CFGetTypeID(raw) == AXValueGetTypeID() {
             let rangeValue = raw as! AXValue
@@ -66,6 +67,9 @@ private enum AXContextSnapshot {
                 if let value = AXValueCreate(.cfRange, &range) {
                     context.surroundingText = reader.parameterizedString(focused, kAXStringForRangeParameterizedAttribute as CFString,
                                                                         parameter: value, limit: 1_700)
+                    if !context.surroundingText.isEmpty {
+                        windowSelection = NSRange(location: selection.location - start, length: selection.length)
+                    }
                 }
             }
             if selection.length > 0, selection.length <= 1_200 {
@@ -73,23 +77,36 @@ private enum AXContextSnapshot {
             }
         }
         if context.surroundingText.isEmpty,
-           (characterCount.map { $0 >= 0 && $0 <= 8_192 } ?? (context.fieldRole == kAXTextFieldRole as String)) {
-            let value = reader.string(focused, kAXValueAttribute as CFString, limit: 8_192)
-            let text = value as NSString
+           (characterCount.map { $0 >= 0 && $0 <= 8_192 } ?? (context.fieldRole == kAXTextFieldRole as String)),
+           let value = reader.value(focused, kAXValueAttribute as CFString) as? String {
+            let text = String(value.prefix(8_192)) as NSString
             let caret = min(selection?.location ?? text.length, text.length)
-            let start = max(0, caret - 900)
-            context.surroundingText = text.substring(with: NSRange(location: start, length: min(1_700, text.length - start)))
+            let requestedStart = max(0, caret - 900)
+            let range = text.rangeOfComposedCharacterSequences(for: NSRange(location: requestedStart,
+                                                                            length: min(1_700, text.length - requestedStart)))
+            let start = range.location
+            context.surroundingText = text.substring(with: range)
+            if let selection, selection.location <= text.length {
+                windowSelection = NSRange(location: selection.location - start, length: selection.length)
+            }
+        }
+        if characterCount == 0, selection?.location == 0, selection?.length == 0 {
+            windowSelection = NSRange(location: 0, length: 0)
         }
         if let window = reader.element(app, kAXFocusedWindowAttribute as CFString) {
             context.windowTitle = reader.string(window, kAXTitleAttribute as CFString, limit: 240)
         }
+        let nearby = reader.nearbyStaticText(focused)
+        context.surroundingText = FocusText.render(textWindow: context.surroundingText,
+                                                  selection: windowSelection, selectedText: context.selectedText,
+                                                  nearbyText: nearby, hostName: context.appName)
         return context
     }
 }
 
 private struct BoundedAXReader {
-    private var remaining = 14
-    private let deadline = ProcessInfo.processInfo.systemUptime + 0.65
+    private var remaining = 30
+    private let deadline = ProcessInfo.processInfo.systemUptime + 0.85
 
     private mutating func prepare(_ element: AXUIElement) -> Bool {
         let available = deadline - ProcessInfo.processInfo.systemUptime
@@ -123,5 +140,34 @@ private struct BoundedAXReader {
         guard AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value) == .success,
               let text = value as? String else { return "" }
         return String(text.prefix(limit))
+    }
+
+    /// A narrow neighborhood, never a recursive window/document scrape. Other
+    /// editable fields are excluded, including secure fields and their values.
+    mutating func nearbyStaticText(_ focused: AXUIElement) -> [String] {
+        guard let parent = element(focused, kAXParentAttribute as CFString),
+              let children = elements(parent, kAXChildrenAttribute as CFString, limit: 32),
+              let index = children.firstIndex(where: { CFEqual($0, focused) }) else { return [] }
+        let positions = [index - 1, index + 1, index - 2, index + 2, index - 3, index + 3]
+        var result: [String] = []
+        for position in positions where children.indices.contains(position) {
+            let sibling = children[position]
+            let role = string(sibling, kAXRoleAttribute as CFString, limit: 80)
+            guard [kAXStaticTextRole as String, kAXHeadingRole as String].contains(role) else { continue }
+            if (value(sibling, kAXHiddenAttribute as CFString) as? Bool) == true { continue }
+            var label = string(sibling, kAXValueAttribute as CFString, limit: 240)
+            if label.isEmpty { label = string(sibling, kAXTitleAttribute as CFString, limit: 240) }
+            if !label.isEmpty { result.append(label) }
+            if result.count == 4 { break }
+        }
+        return result
+    }
+
+    mutating func elements(_ element: AXUIElement, _ attribute: CFString, limit: Int) -> [AXUIElement]? {
+        guard prepare(element) else { return nil }
+        var values: CFArray?
+        guard AXUIElementCopyAttributeValues(element, attribute, 0, limit, &values) == .success,
+              let values = values as? [AXUIElement] else { return nil }
+        return values
     }
 }
