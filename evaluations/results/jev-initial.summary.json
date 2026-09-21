@@ -1,0 +1,518 @@
+{
+  "label": "jev-initial",
+  "datasetSHA256": "0537bde8a33eac2d0aab5dcfb649ecf89acb6b05908ba18a3c628f46476354ea",
+  "workerSHA256": "d873dfbd13f14de95a0271e57c9b6e52023e4055adfd6696cd7cd355fe0c48d3",
+  "workerSourcesSHA256": {
+    "jev.py": "72ce4675e21cc970290f859a6ffeeea4b13bbb502a52e50f3cc438cfa9f3b7c0",
+    "ranking.py": "efa5932b397b60a5ea6f88c14cc92aa12e09e631e63b1d816b1474b94c20ffe4",
+    "worker.py": "d873dfbd13f14de95a0271e57c9b6e52023e4055adfd6696cd7cd355fe0c48d3"
+  },
+  "baselineCommit": null,
+  "productionCommit": "e1663b79d42c2c4f4ecd1afbb2cf508c3192523e",
+  "backend": "jev",
+  "protocol": "current",
+  "noModel": false,
+  "contextProjection": {
+    "method": "production-swift",
+    "sourceSHA256": {
+      "Sources/PasteWhat/Models.swift": "942e3f8b0a1538d3726309c9af2af2d076d4aec2cd6bad1e5a04e201535e7cf8",
+      "Sources/PasteWhat/RecommendationContext.swift": "0b72cd4c7e7c4859b68ed41ce3eed52b28f00557698b72a3a93bdf7a1f206561",
+      "evaluations/ProjectContext.swift": "340fd8975576a66cef5aa44c5d9a2764d4e028d21c4a4c3879581b86bbe9e6f7"
+    },
+    "categoryCounts": {
+      "mail": 20,
+      "browser": 23,
+      "unknown": 15,
+      "file_management": 3,
+      "terminal": 13,
+      "messaging": 16,
+      "development": 17,
+      "writing": 11,
+      "spreadsheet": 3
+    },
+    "surfaceCounts": {
+      "recipient": 5,
+      "text": 109,
+      "color": 3,
+      "file_path": 2,
+      "unknown": 2
+    }
+  },
+  "split": "all",
+  "subset": "full",
+  "platform": {
+    "system": "Darwin",
+    "release": "27.2.0",
+    "machine": "arm64"
+  },
+  "modelConfigurationSHA256": null,
+  "modelVersions": [
+    "jev-1.13.0"
+  ],
+  "warmup": {
+    "elapsedMS": 870.844,
+    "endToEndMS": 1082.26,
+    "mode": "jev",
+    "inferenceCount": 1
+  },
+  "overall": {
+    "cases": 120,
+    "answerable": 97,
+    "shouldAbstain": 23,
+    "answerableTop1": 0.762887,
+    "decisionAccuracy": 0.8,
+    "recommendationPrecision": 0.986667,
+    "recommendationCoverage": 0.625,
+    "noAnswerFalsePromotionRate": 0.043478,
+    "correctPromotions": 74,
+    "promotions": 75,
+    "correctAbstentions": 22,
+    "missedAnswerable": 23,
+    "wrongPromotionsOnAnswerable": 0,
+    "shortlistRecall": 1.0,
+    "warmLatencyMS": {
+      "p50": 825.052,
+      "p95": 967.102
+    },
+    "warmEndToEndMS": {
+      "p50": 825.335,
+      "p95": 967.317
+    },
+    "modes": {
+      "jev": 120
+    },
+    "decisions": {
+      "model_abstained": 21,
+      "ambiguous": 18,
+      "recommended": 75,
+      "insufficient_context": 3,
+      "no_compatible_candidate": 2,
+      "secure_field": 1
+    },
+    "inferenceCount": {
+      "total": 114,
+      "mean": 0.95,
+      "max": 1
+    },
+    "shortlistSize": {
+      "mean": 2.842,
+      "max": 20
+    }
+  },
+  "bySplit": {
+    "dev": {
+      "cases": 40,
+      "answerable": 34,
+      "shouldAbstain": 6,
+      "answerableTop1": 0.705882,
+      "decisionAccuracy": 0.75,
+      "recommendationPrecision": 1.0,
+      "recommendationCoverage": 0.6,
+      "noAnswerFalsePromotionRate": 0.0,
+      "correctPromotions": 24,
+      "promotions": 24,
+      "correctAbstentions": 6,
+      "missedAnswerable": 10,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 827.094,
+        "p95": 934.445
+      },
+      "warmEndToEndMS": {
+        "p50": 827.488,
+        "p95": 934.846
+      },
+      "modes": {
+        "jev": 40
+      },
+      "decisions": {
+        "model_abstained": 5,
+        "ambiguous": 7,
+        "recommended": 24,
+        "insufficient_context": 2,
+        "no_compatible_candidate": 1,
+        "secure_field": 1
+      },
+      "inferenceCount": {
+        "total": 36,
+        "mean": 0.9,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 2.5,
+        "max": 4
+      }
+    },
+    "heldout": {
+      "cases": 80,
+      "answerable": 63,
+      "shouldAbstain": 17,
+      "answerableTop1": 0.793651,
+      "decisionAccuracy": 0.825,
+      "recommendationPrecision": 0.980392,
+      "recommendationCoverage": 0.6375,
+      "noAnswerFalsePromotionRate": 0.058824,
+      "correctPromotions": 50,
+      "promotions": 51,
+      "correctAbstentions": 16,
+      "missedAnswerable": 13,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 823.177,
+        "p95": 967.102
+      },
+      "warmEndToEndMS": {
+        "p50": 823.621,
+        "p95": 967.317
+      },
+      "modes": {
+        "jev": 80
+      },
+      "decisions": {
+        "model_abstained": 16,
+        "ambiguous": 11,
+        "recommended": 51,
+        "insufficient_context": 1,
+        "no_compatible_candidate": 1
+      },
+      "inferenceCount": {
+        "total": 78,
+        "mean": 0.975,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 3.013,
+        "max": 20
+      }
+    }
+  },
+  "byGroup": {
+    "abstention": {
+      "cases": 18,
+      "answerable": 0,
+      "shouldAbstain": 18,
+      "answerableTop1": null,
+      "decisionAccuracy": 1.0,
+      "recommendationPrecision": null,
+      "recommendationCoverage": 0.0,
+      "noAnswerFalsePromotionRate": 0.0,
+      "correctPromotions": 0,
+      "promotions": 0,
+      "correctAbstentions": 18,
+      "missedAnswerable": 0,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": null,
+      "warmLatencyMS": {
+        "p50": 786.639,
+        "p95": 944.453
+      },
+      "warmEndToEndMS": {
+        "p50": 787.371,
+        "p95": 944.808
+      },
+      "modes": {
+        "jev": 18
+      },
+      "decisions": {
+        "insufficient_context": 3,
+        "no_compatible_candidate": 2,
+        "model_abstained": 11,
+        "secure_field": 1,
+        "ambiguous": 1
+      },
+      "inferenceCount": {
+        "total": 12,
+        "mean": 0.667,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 1.778,
+        "max": 3
+      }
+    },
+    "app_field_conflicts": {
+      "cases": 12,
+      "answerable": 12,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.75,
+      "decisionAccuracy": 0.75,
+      "recommendationPrecision": 1.0,
+      "recommendationCoverage": 0.75,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 9,
+      "promotions": 9,
+      "correctAbstentions": 0,
+      "missedAnswerable": 3,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 807.076,
+        "p95": 862.809
+      },
+      "warmEndToEndMS": {
+        "p50": 807.435,
+        "p95": 863.383
+      },
+      "modes": {
+        "jev": 12
+      },
+      "decisions": {
+        "recommended": 9,
+        "ambiguous": 3
+      },
+      "inferenceCount": {
+        "total": 12,
+        "mean": 1,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 2.333,
+        "max": 3
+      }
+    },
+    "code_command": {
+      "cases": 18,
+      "answerable": 18,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.944444,
+      "decisionAccuracy": 0.944444,
+      "recommendationPrecision": 1.0,
+      "recommendationCoverage": 0.944444,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 17,
+      "promotions": 17,
+      "correctAbstentions": 0,
+      "missedAnswerable": 1,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 857.395,
+        "p95": 1008.131
+      },
+      "warmEndToEndMS": {
+        "p50": 858.22,
+        "p95": 1008.406
+      },
+      "modes": {
+        "jev": 18
+      },
+      "decisions": {
+        "recommended": 17,
+        "ambiguous": 1
+      },
+      "inferenceCount": {
+        "total": 18,
+        "mean": 1,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 3,
+        "max": 3
+      }
+    },
+    "content_intent": {
+      "cases": 18,
+      "answerable": 18,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.944444,
+      "decisionAccuracy": 0.944444,
+      "recommendationPrecision": 1.0,
+      "recommendationCoverage": 0.944444,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 17,
+      "promotions": 17,
+      "correctAbstentions": 0,
+      "missedAnswerable": 1,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 825.159,
+        "p95": 945.531
+      },
+      "warmEndToEndMS": {
+        "p50": 825.567,
+        "p95": 945.965
+      },
+      "modes": {
+        "jev": 18
+      },
+      "decisions": {
+        "recommended": 17,
+        "ambiguous": 1
+      },
+      "inferenceCount": {
+        "total": 18,
+        "mean": 1,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 3,
+        "max": 3
+      }
+    },
+    "entity_resolution": {
+      "cases": 18,
+      "answerable": 18,
+      "shouldAbstain": 0,
+      "answerableTop1": 0.944444,
+      "decisionAccuracy": 0.944444,
+      "recommendationPrecision": 1.0,
+      "recommendationCoverage": 0.944444,
+      "noAnswerFalsePromotionRate": null,
+      "correctPromotions": 17,
+      "promotions": 17,
+      "correctAbstentions": 0,
+      "missedAnswerable": 1,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 848.134,
+        "p95": 966.911
+      },
+      "warmEndToEndMS": {
+        "p50": 848.38,
+        "p95": 967.187
+      },
+      "modes": {
+        "jev": 18
+      },
+      "decisions": {
+        "recommended": 17,
+        "ambiguous": 1
+      },
+      "inferenceCount": {
+        "total": 18,
+        "mean": 1,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 3,
+        "max": 3
+      }
+    },
+    "explicit_fields": {
+      "cases": 18,
+      "answerable": 17,
+      "shouldAbstain": 1,
+      "answerableTop1": 0.352941,
+      "decisionAccuracy": 0.388889,
+      "recommendationPrecision": 1.0,
+      "recommendationCoverage": 0.333333,
+      "noAnswerFalsePromotionRate": 0.0,
+      "correctPromotions": 6,
+      "promotions": 6,
+      "correctAbstentions": 1,
+      "missedAnswerable": 11,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 860.815,
+        "p95": 925.812
+      },
+      "warmEndToEndMS": {
+        "p50": 861.122,
+        "p95": 926.151
+      },
+      "modes": {
+        "jev": 18
+      },
+      "decisions": {
+        "model_abstained": 6,
+        "ambiguous": 6,
+        "recommended": 6
+      },
+      "inferenceCount": {
+        "total": 18,
+        "mean": 1,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 1.944,
+        "max": 4
+      }
+    },
+    "history_boundary": {
+      "cases": 6,
+      "answerable": 5,
+      "shouldAbstain": 1,
+      "answerableTop1": 0.8,
+      "decisionAccuracy": 0.666667,
+      "recommendationPrecision": 0.8,
+      "recommendationCoverage": 0.833333,
+      "noAnswerFalsePromotionRate": 1.0,
+      "correctPromotions": 4,
+      "promotions": 5,
+      "correctAbstentions": 0,
+      "missedAnswerable": 1,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 808.304,
+        "p95": 932.418
+      },
+      "warmEndToEndMS": {
+        "p50": 808.918,
+        "p95": 933.177
+      },
+      "modes": {
+        "jev": 6
+      },
+      "decisions": {
+        "recommended": 5,
+        "ambiguous": 1
+      },
+      "inferenceCount": {
+        "total": 6,
+        "mean": 1,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 8.333,
+        "max": 20
+      }
+    },
+    "representation": {
+      "cases": 12,
+      "answerable": 9,
+      "shouldAbstain": 3,
+      "answerableTop1": 0.444444,
+      "decisionAccuracy": 0.583333,
+      "recommendationPrecision": 1.0,
+      "recommendationCoverage": 0.333333,
+      "noAnswerFalsePromotionRate": 0.0,
+      "correctPromotions": 4,
+      "promotions": 4,
+      "correctAbstentions": 3,
+      "missedAnswerable": 5,
+      "wrongPromotionsOnAnswerable": 0,
+      "shortlistRecall": 1.0,
+      "warmLatencyMS": {
+        "p50": 803.939,
+        "p95": 899.12
+      },
+      "warmEndToEndMS": {
+        "p50": 804.404,
+        "p95": 899.581
+      },
+      "modes": {
+        "jev": 12
+      },
+      "decisions": {
+        "model_abstained": 4,
+        "ambiguous": 4,
+        "recommended": 4
+      },
+      "inferenceCount": {
+        "total": 12,
+        "mean": 1,
+        "max": 1
+      },
+      "shortlistSize": {
+        "mean": 2.833,
+        "max": 3
+      }
+    }
+  }
+}

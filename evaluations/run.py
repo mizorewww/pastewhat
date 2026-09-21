@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Run a frozen synthetic recommendation evaluation through the worker protocol.
 
-This is an offline quality/latency evaluation, not a unit-test target. It never
+This is a synthetic quality/latency evaluation, not a unit-test target. Jev sends
+the synthetic fixtures to TypeSafe; local backends stay offline. It never
 reads NSPasteboard, Application Support history, or a real application's context.
 """
 
@@ -195,8 +196,8 @@ def metrics(records):
     return result
 
 
-def evaluation_error(response, request, protocol, no_model):
-    if response.get("decision") in {"invalid_request", "error", "model_error", "runtime_error"}:
+def evaluation_error(response, request, protocol, no_model, backend="mlx"):
+    if response.get("decision") in {"invalid_request", "error", "model_error", "runtime_error", "remote_unavailable"}:
         return "Worker returned an error decision, not a valid recommendation/abstention."
     if protocol == "legacy" and not request["context"].get("isSecure") and not response.get("rankings"):
         return "Legacy worker returned no rankings for a valid nonempty nonsecure request."
@@ -207,7 +208,8 @@ def evaluation_error(response, request, protocol, no_model):
     if protocol == "current" and not no_model and not request["context"].get("isSecure"):
         has_context = any(request["context"].get(key, "").strip() for key in
                           ("fieldLabel", "selectedText", "surroundingText"))
-        if has_context and response.get("shortlistedIDs") and response.get("mode") != "laya":
+        expected_mode = "jev" if backend == "jev" else "laya"
+        if has_context and response.get("shortlistedIDs") and response.get("mode") != expected_mode:
             return "Model-requested evaluation unexpectedly fell back for a contextual shortlisted request."
     return None
 
@@ -216,8 +218,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--python", required=True, help="Existing environment containing the chosen Laya backend")
     parser.add_argument("--worker", required=True, type=Path)
-    parser.add_argument("--model", required=True, type=Path)
-    parser.add_argument("--backend", choices=("mlx", "coreml"), default="mlx")
+    parser.add_argument("--model", type=Path, help="Local model directory, unnecessary for Jev")
+    parser.add_argument("--backend", choices=("mlx", "coreml", "jev"), default="mlx")
     parser.add_argument("--protocol", choices=("legacy", "current"), required=True)
     parser.add_argument("--split", choices=("all", "dev", "heldout"), default="all")
     parser.add_argument("--subset", choices=("full", "coreml"), default="full")
@@ -227,6 +229,11 @@ def main():
     parser.add_argument("--timeout", type=float, default=120)
     parser.add_argument("--output", type=Path, default=ROOT / "results")
     args = parser.parse_args()
+    if args.backend != "jev" and args.model is None:
+        parser.error("Local backends require --model.")
+    if args.backend == "jev" and (args.no_model or args.protocol != "current"):
+        parser.error("Jev requires the current protocol and cannot use --no-model.")
+    expected_mode = "jev" if args.backend == "jev" else "laya"
     if args.no_model and args.protocol != "current":
         parser.error("--no-model is available only for the current protocol.")
     if not args.label or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_." for char in args.label):
@@ -253,7 +260,9 @@ def main():
                           args.worker.name: hashlib.sha256(worker_bytes).hexdigest()}
     warmup_input = warmup_case()
     projection = project_contexts([*cases, warmup_input]) if args.protocol == "current" else None
-    command = [args.python, "-u", str(args.worker.resolve()), "--backend", args.backend, "--model", str(args.model.resolve())]
+    command = [args.python, "-u", str(args.worker.resolve()), "--backend", args.backend]
+    if args.model is not None:
+        command.extend(["--model", str(args.model.resolve())])
     if args.no_model:
         command.append("--no-model")
     worker = Worker(command, args.timeout)
@@ -261,23 +270,23 @@ def main():
     try:
         warmup_request = request_for(warmup_input, args.protocol)
         warmup, warmup_wall = worker.request(warmup_request)
-        warmup_error = evaluation_error(warmup, warmup_request, args.protocol, args.no_model)
+        warmup_error = evaluation_error(warmup, warmup_request, args.protocol, args.no_model, args.backend)
         if warmup_error:
             raise RuntimeError("Unscored warmup: " + warmup_error)
-        model_warmed = args.no_model or warmup.get("mode") == "laya"
+        model_warmed = args.no_model or warmup.get("mode") == expected_mode
         with response_path.open("x") as output:
             for index, case in enumerate(cases, 1):
                 request = request_for(case, args.protocol)
                 response, elapsed_wall = worker.request(request)
-                error = evaluation_error(response, request, args.protocol, args.no_model)
+                error = evaluation_error(response, request, args.protocol, args.no_model, args.backend)
                 correct = case["expected"]["correctIDs"]
                 recommended = response.get("recommendedID")
                 shortlisted = response.get("shortlistedIDs")
-                cold = not model_warmed and response.get("mode") == "laya"
-                model_warmed = model_warmed or response.get("mode") == "laya"
+                cold = not model_warmed and response.get("mode") == expected_mode
+                model_warmed = model_warmed or response.get("mode") == expected_mode
                 row = {"caseID": case["id"], "split": case["split"], "group": case["group"],
                        "tags": case["tags"], "correctIDs": correct, "recommendedID": recommended,
-                       "decisionCorrect": recommended in correct if correct else recommended is None,
+                       "decisionCorrect": not error and (recommended in correct if correct else recommended is None),
                        "decision": response.get("decision", "recommended" if recommended else "abstain"),
                        "shortlistedIDs": shortlisted,
                        "shortlistRecall": bool(set(correct) & set(shortlisted)) if correct and shortlisted is not None else None,
@@ -292,8 +301,9 @@ def main():
                     raise RuntimeError(case["id"] + ": " + error)
                 if index % 10 == 0 or index == len(cases):
                     print(json.dumps({"completed": index, "total": len(cases), "label": args.label}), flush=True)
-        if not args.no_model and warmup.get("mode") != "laya" and not any(row["mode"] == "laya" for row in records):
-            raise RuntimeError("No real Laya inference observed; do not report this as a model evaluation.")
+        if not args.no_model and not (warmup.get("inferenceCount", 0) or any(row["inferenceCount"] for row in records)):
+            if args.protocol != "legacy":
+                raise RuntimeError("No real model inference observed; do not report this as a model evaluation.")
     except Exception as error:
         failure = {"label": args.label, "error": type(error).__name__, "message": str(error),
                    "completedCases": len(records), "workerSourcesSHA256": worker_sources,
@@ -313,7 +323,9 @@ def main():
                "split": args.split, "subset": args.subset,
                "platform": {"system": platform.system(), "release": platform.release(), "machine": platform.machine()},
                "modelConfigurationSHA256": hashlib.sha256((args.model / "rl_agent_config.json").read_bytes()).hexdigest()
-                   if (args.model / "rl_agent_config.json").is_file() else None,
+                   if args.model is not None and (args.model / "rl_agent_config.json").is_file() else None,
+               "modelVersions": sorted({row["response"].get("modelVersion") for row in records
+                                         if row["response"].get("modelVersion")}),
                "warmup": {"elapsedMS": warmup.get("elapsedMS"), "endToEndMS": round(warmup_wall, 3),
                           "mode": warmup.get("mode"), "inferenceCount": warmup.get("inferenceCount")},
                "overall": metrics(records),
