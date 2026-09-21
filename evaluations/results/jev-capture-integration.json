@@ -1,0 +1,48 @@
+{
+  "scope": "four synthetic paste-boundary integration checks, not an accuracy benchmark",
+  "capture_format": "pastewhat-focus-v1",
+  "cases": [
+    {
+      "case": "empty-method-field",
+      "expected": "a",
+      "recommendedID": "a",
+      "decision": "recommended",
+      "modelVersion": "jev-1.13.0",
+      "inferenceCount": 1,
+      "elapsedMS": 579.431,
+      "passed": true
+    },
+    {
+      "case": "selected-method-replacement",
+      "expected": "a",
+      "recommendedID": "a",
+      "decision": "recommended",
+      "modelVersion": "jev-1.13.0",
+      "inferenceCount": 1,
+      "elapsedMS": 653.723,
+      "passed": true
+    },
+    {
+      "case": "unselected-code-blank",
+      "expected": null,
+      "recommendedID": null,
+      "decision": "no_compatible_candidate",
+      "modelVersion": null,
+      "inferenceCount": 0,
+      "elapsedMS": 0.955,
+      "passed": true
+    },
+    {
+      "case": "empty-method-no-compatible-candidate",
+      "expected": null,
+      "recommendedID": null,
+      "decision": "model_abstained",
+      "modelVersion": "jev-1.13.0",
+      "inferenceCount": 1,
+      "elapsedMS": 575.632,
+      "passed": true
+    }
+  ],
+  "passed": 4,
+  "count": 4
+}
