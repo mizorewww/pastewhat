@@ -379,12 +379,7 @@ enum ClipboardPayloadCodec {
     static let maximumBytes = 8 * 1024 * 1024
     static let maximumItems = 128
     static let ownerType = NSPasteboard.PasteboardType("app.pastewhat.clipboard-owner")
-    static let supportedTypes: Set<String> = [
-        "public.utf8-plain-text", "public.utf16-external-plain-text", "public.utf16-plain-text",
-        "public.plain-text", "public.rtf", "com.apple.flat-rtfd", "public.html",
-        "public.utf8-tab-separated-values-text", "public.png", "public.tiff", "com.adobe.pdf",
-        "public.file-url", "public.url", "com.apple.cocoa.pasteboard.color"
-    ]
+    static let supportedTypes = CandidateProjection.supportedTypes
 
     static func isExcluded(_ type: NSPasteboard.PasteboardType) -> Bool {
         let value = type.rawValue.lowercased()
@@ -435,52 +430,16 @@ enum ClipboardPayloadCodec {
     }
 
     static func text(from payload: PasteboardPayload) -> String? {
-        for type in ["public.utf8-plain-text", "public.plain-text", "public.utf8-tab-separated-values-text",
-                     "public.url", "public.file-url"] {
-            if let data = payload.representations[type], let text = String(data: data, encoding: .utf8) {
-                return text
-            }
-        }
-        for type in ["public.utf16-external-plain-text", "public.utf16-plain-text"] {
-            if let data = payload.representations[type], let text = String(data: data, encoding: .utf16) {
-                return text
-            }
-        }
-        return nil
+        CandidateProjection.text(from: payload)
     }
 
     static func summary(_ payloads: [PasteboardPayload]) -> (text: String, kind: ClipKind) {
-        let types = Set(payloads.flatMap { $0.representations.keys })
-        if types.contains("public.file-url") {
-            let names = payloads.compactMap { payload -> String? in
-                guard let data = payload.representations["public.file-url"],
-                      let string = String(data: data, encoding: .utf8), let url = URL(string: string) else { return nil }
-                return url.lastPathComponent
-            }
-            return (String(names.joined(separator: "\n").prefix(32_000)), .file)
-        }
-        let text = payloads.compactMap(Self.text(from:)).joined(separator: "\n")
-        if !text.isEmpty { return (String(text.prefix(32_000)), kind(for: text)) }
-        if !types.isDisjoint(with: ["public.png", "public.tiff", "com.adobe.pdf"]) {
-            return (payloads.count > 1 ? "\(payloads.count) 张图片" : "图片", .image)
-        }
-        if types.contains("com.apple.cocoa.pasteboard.color") { return ("颜色", .color) }
-        return ("富文本", .text)
+        let projection = CandidateProjection.project(payloads)
+        return (projection.text, projection.kind)
     }
 
     static func kind(for text: String) -> ClipKind {
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.range(of: "^#[0-9a-fA-F]{3,8}$", options: .regularExpression) != nil { return .color }
-        if value.range(of: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", options: .regularExpression) != nil { return .email }
-        if let url = URL(string: value), ["https", "http", "ftp", "mailto"].contains(url.scheme?.lowercased() ?? ""),
-           !value.contains(where: \.isWhitespace) { return .url }
-        if value.range(of: "^[+()0-9 .-]{7,25}$", options: .regularExpression) != nil,
-           value.filter(\.isNumber).count >= 7 { return .phone }
-        if ["$ ", "git ", "sudo ", "npm ", "npx ", "brew ", "python ", "python3 ", "curl ",
-            "swift ", "cd ", "ls ", "ssh ", "docker ", "make ", "xcodebuild "].contains(where: value.hasPrefix) { return .command }
-        if ["import ", "func ", "let ", "const ", "def ", "class ", "struct ", "SELECT ", "#!/"].contains(where: value.hasPrefix)
-            || (value.contains("\n") && (value.contains("{") || value.contains("=>"))) { return .code }
-        return .text
+        CandidateProjection.kind(for: text)
     }
 
     static func normalized(_ values: [ClipboardEntry]) -> [ClipboardEntry] {
