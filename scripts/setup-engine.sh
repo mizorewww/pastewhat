@@ -42,6 +42,7 @@ if [ "$backend" != "mlx" ] && [ "$backend" != "coreml" ]; then
     echo "Backend must be mlx or coreml." >&2
     exit 2
 fi
+support_dir="${support_dir/#\~/$HOME}"
 if [ "$(uname -s)" != "Darwin" ] || [ "$(uname -m)" != "arm64" ]; then
     echo "PasteWhat requires an Apple silicon Mac." >&2
     exit 1

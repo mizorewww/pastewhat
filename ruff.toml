@@ -1,0 +1,3 @@
+# Ruff configuration for the PasteWhat Python engine and evaluation harness.
+target-version = "py312"
+line-length = 120

@@ -37,15 +37,19 @@ final class SettingsController: NSWindowController {
     required init?(coder: NSCoder) { nil }
 
     func show() {
-        permissionLabel.stringValue = ContextReader.isTrusted ? "已允许 · 可读取输入语境并自动粘贴" : "未开启 · 可浏览历史、搜索与手动复制"
+        refreshPermission()
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         NSApp.activate()
         showWindow(nil)
-        window?.makeKeyAndOrderFront(nil)
+        window!.makeKeyAndOrderFront(nil)
+    }
+
+    private func refreshPermission(untrustedHint: String = "未开启 · 可浏览历史、搜索与手动复制") {
+        permissionLabel.stringValue = ContextReader.isTrusted ? "已允许 · 可读取输入语境并自动粘贴" : untrustedHint
     }
 
     private func build() {
-        guard let content = window?.contentView else { return }
+        let content = window!.contentView!
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -102,16 +106,11 @@ final class SettingsController: NSWindowController {
             field.lineBreakMode = .byTruncatingMiddle
             field.cell?.isScrollable = true
         }
-        add(pathRow(label: "Python", field: pythonField, action: #selector(choosePython)), to: stack)
-        add(pathRow(label: "模型", field: modelField, action: #selector(chooseModel)), to: stack)
+        add(row(label: "Python", field: pythonField, buttonTitle: "选择…", action: #selector(choosePython)), to: stack)
+        add(row(label: "模型", field: modelField, buttonTitle: "选择…", action: #selector(chooseModel)), to: stack)
         jevKeyField.placeholderString = EngineCredentials.hasJevKey ? "密钥已保存；留空保持现有密钥" : "输入 Jev API Key"
         jevKeyField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        let keyLabel = Theme.label("API Key", size: 12)
-        keyLabel.widthAnchor.constraint(equalToConstant: 46).isActive = true
-        let removeKey = Theme.button("移除密钥", target: self, action: #selector(removeJevKey))
-        removeKey.setContentHuggingPriority(.required, for: .horizontal)
-        let keyRow = NSStackView(views: [keyLabel, jevKeyField, removeKey])
-        keyRow.spacing = 10
+        let keyRow = row(label: "API Key", field: jevKeyField, buttonTitle: "移除密钥", action: #selector(removeJevKey))
         credentialRow = keyRow
         add(keyRow, to: stack)
         engineNote.maximumNumberOfLines = 4
@@ -138,12 +137,12 @@ final class SettingsController: NSWindowController {
         add(line, to: stack)
     }
 
-    private func pathRow(label: String, field: NSTextField, action: Selector) -> NSStackView {
+    private func row(label: String, field: NSView, buttonTitle: String, action: Selector) -> NSStackView {
         let name = Theme.label(label, size: 12)
         name.widthAnchor.constraint(equalToConstant: 46).isActive = true
-        let choose = Theme.button("选择…", target: self, action: action)
-        choose.setContentHuggingPriority(.required, for: .horizontal)
-        let row = NSStackView(views: [name, field, choose])
+        let button = Theme.button(buttonTitle, target: self, action: action)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        let row = NSStackView(views: [name, field, button])
         row.spacing = 10
         return row
     }
@@ -181,7 +180,7 @@ final class SettingsController: NSWindowController {
 
     @objc private func permissionClicked() {
         ContextReader.requestPermission()
-        permissionLabel.stringValue = ContextReader.isTrusted ? "已允许 · 可读取输入语境并自动粘贴" : "请在系统设置中允许 PasteWhat，再重新打开面板。"
+        refreshPermission(untrustedHint: "请在系统设置中允许 PasteWhat，再重新打开面板。")
     }
 
     @objc private func backendChanged() {
@@ -235,19 +234,19 @@ final class SettingsController: NSWindowController {
         } else if backendIDs[backend.indexOfSelectedItem] == "ranker" {
             engineNote.stringValue = "专用模型在本机比较全部候选。请选择已发布并校准的 MLX 模型；模型不完整或校验失败时保留时间顺序。"
         } else {
-            engineNote.stringValue = "Laya 在本机运行，不上传语境或候选。首次使用请运行 scripts/setup-engine.sh；Core ML 需 macOS 15+。"
+            engineNote.stringValue = "Laya 在本机运行，不上传语境或候选。未装模型时使用本地匹配。安装模型：在终端运行 应用程序/PasteWhat.app/Contents/Resources/setup-engine.sh（需要 uv）；Core ML 需 macOS 15+。"
         }
     }
 
     @objc private func removeJevKey() {
-        do {
-            try EngineCredentials.removeJevKey()
-            jevKeyField.stringValue = ""
-            jevKeyField.placeholderString = "输入 Jev API Key"
-            // Restart the worker so an in-memory remote response cannot outlive key removal.
-            try onSaveEngine?(configuration)
-            feedback.stringValue = "Jev 密钥已移除。"
-        } catch { feedback.stringValue = "无法移除密钥，请检查本机文件权限。" }
+        do { try EngineCredentials.removeJevKey() }
+        catch { feedback.stringValue = "无法移除密钥，请检查本机文件权限。"; return }
+        jevKeyField.stringValue = ""
+        jevKeyField.placeholderString = "输入 Jev API Key"
+        // Restart the worker so an in-memory remote response cannot outlive key removal.
+        do { try onSaveEngine?(configuration) }
+        catch { feedback.stringValue = "密钥已移除，但重新连接引擎失败：\(error.localizedDescription)"; return }
+        feedback.stringValue = "Jev 密钥已移除。"
     }
 
     @objc private func saveEngine() {
@@ -301,10 +300,8 @@ final class SettingsController: NSWindowController {
         picker.allowsMultipleSelection = false
         picker.showsHiddenFiles = true
         picker.message = directory ? "选择与当前引擎对应的完整模型文件夹" : "选择安装了所选引擎的 Python 可执行文件"
-        if let window {
-            picker.beginSheetModal(for: window) { response in
-                if response == .OK, let path = picker.url?.path { field.stringValue = path }
-            }
+        picker.beginSheetModal(for: window!) { response in
+            if response == .OK, let path = picker.url?.path { field.stringValue = path }
         }
     }
 
@@ -315,8 +312,7 @@ final class SettingsController: NSWindowController {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "清空历史")
         alert.addButton(withTitle: "取消")
-        guard let window else { return }
-        alert.beginSheetModal(for: window) { [weak self] response in
+        alert.beginSheetModal(for: window!) { [weak self] response in
             guard response == .alertFirstButtonReturn else { return }
             self?.onClearHistory?()
             self?.feedback.stringValue = "历史已清空。"

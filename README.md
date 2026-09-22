@@ -25,6 +25,28 @@ Native AppKit clipboard history with contextual Laya recommendations and an opt-
 
 推荐只改变面板顺序。**选择复制或粘贴后才会修改系统剪贴板。** 历史从应用运行期间开始积累，无法取回 macOS 从未保存的过去 20 次复制。
 
+## 安装
+
+需要 Apple silicon Mac、macOS 14+。本地推荐通过系统 Python 3 运行（安装 Xcode 命令行工具后即可用）；模型未安装时自动退化为本地匹配，面板会明确显示，历史、搜索和手动复制粘贴不受影响。
+
+**Homebrew（推荐）**
+
+```bash
+brew install --cask mizorewww/tap/pastewhat
+```
+
+**手动下载**：从 [GitHub Releases](https://github.com/mizorewww/pastewhat/releases) 下载 `PasteWhat-<版本>.zip`，解压后把 `PasteWhat.app` 拖进「应用程序」。发布版本经过 Apple 公证并 staple，首次打开可直接通过 Gatekeeper。
+
+首次启动后点击菜单栏图标 → 设置 →「开启辅助功能…」，在系统设置中允许 PasteWhat（用于读取聚焦输入框语境和自动发送粘贴）。没有权限时仍可记录、浏览、搜索和复制，手动 `⌘V` 粘贴。
+
+安装本机 Laya 模型（可选，首次下载约数百 MB，之后强制离线运行，需要 [uv](https://docs.astral.sh/uv/getting-started/installation/)）：
+
+```bash
+/Applications/PasteWhat.app/Contents/Resources/setup-engine.sh
+```
+
+升级与卸载：`brew upgrade --cask pastewhat`、`brew uninstall --cask pastewhat`。
+
 ## 构建与运行
 
 需要 Apple silicon Mac、macOS 14+、带 Swift 6 的 Xcode 16.3+。可选 Core ML 后端需要 macOS 15+。当前在 M3 Max、macOS 27.2、Xcode 27.0 上完成构建与运行验证。
@@ -37,6 +59,8 @@ open dist/PasteWhat.app
 ```
 
 生成 `dist/PasteWhat.app`，默认进行本地 ad-hoc 签名。可用 `./scripts/build-app.sh debug` 构建调试版，也可以在 Xcode 中打开 `Package.swift`。长期使用请启动 `.app`，以获得稳定的菜单栏、权限和登录启动行为。
+
+仓库根目录的 Makefile 提供常用开发目标：`make build`、`make install`（安装到 `~/Applications`，可用 `INSTALL_DIR` 覆盖）、`make check`（构建 + ruff + 语法检查）、`make lint` / `make fix` / `make format`（ruff）、`make evaluate`（按 `engine.json` 的配置跑冻结评估）、`make demo`、`make clean`。`make help` 查看全部。
 
 ### 本地 Laya 引擎
 
@@ -130,6 +154,8 @@ open -n dist/PasteWhat.app --args --demo
 
 演示不读取、保存或删除真实历史，但用户主动点击复制会复制示例内容。正常启动不填充任何示例。
 
-本地构建包尚未作为公证发行版发布。需要固定签名身份时，可通过 `PASTEWHAT_SIGNING_IDENTITY` 环境变量传给构建脚本；正式对外分发还需要单独完成签名、公证及 runtime 打包。
+构建脚本按以下顺序选择签名身份：`PASTEWHAT_SIGNING_IDENTITY` 环境变量 → 钥匙串中的 **Developer ID Application** → `make signing-identity` 创建的本地自签名身份 → ad-hoc（并打印警告）。默认的 ad-hoc 签名每次构建都会改变 cdhash，macOS 的辅助功能、剪贴板等授权与签名绑定，因此每次重装都会静默失效；任何稳定身份都能让授权跨构建保留。钥匙串中已有 Developer ID 时无需任何操作；没有 Apple 证书的机器执行一次 `make signing-identity` 即可（有效期十年，首次签名若询问是否允许 codesign 使用密钥，选择“始终允许”）。
+
+对外分发：`make notary-profile KEY=/path/AuthKey_XXXX.p8 KEY_ID=... ISSUER=...` 存入 App Store Connect API 凭证（一次），之后 `make release` 以分发模式构建（不嵌入本机 workspace 路径）、公证并 staple，打包出版本化的 `dist/PasteWhat-<版本>.zip` 与 sha256，可直接作为 GitHub Release 资产。只需公证不打包时用 `make notarize`。
 
 模型和 runtime 来源见 [NOTICE](NOTICE)。
