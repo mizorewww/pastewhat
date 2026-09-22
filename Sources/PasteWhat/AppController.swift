@@ -246,8 +246,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !entries.isEmpty, panel.isVisible, contextReady else { return }
         let id = UUID().uuidString
         requestID = id
+        // The panel always shows and searches the full stored history; only the
+        // engine's ranking pool is narrowed to the most recent entries.
+        let pool = entries.prefix(10)
         let candidates = engine.configuration.backend == "ranker"
-            ? entries.map(\.rankerCandidate) : entries.map(\.candidate)
+            ? pool.map(\.rankerCandidate) : pool.map(\.candidate)
         let request = RecommendationRequest(id: id, context: context.modelContext, entries: candidates)
         setPanelStatus("\(engine.configuration.displayName) 正在寻找合适的内容…")
         rankingTask = Task { [weak self] in

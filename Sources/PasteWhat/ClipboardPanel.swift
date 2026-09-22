@@ -40,7 +40,7 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
     private let search = NSSearchField()
     private let table = NSTableView()
     private let destination = Theme.label("准备下一次粘贴", size: 13, weight: .semibold)
-    private let contextDetail = Theme.label("从最近 20 条中找到此刻需要的内容", size: 11, color: .secondaryLabelColor)
+    private let contextDetail = Theme.label("从最近 10 条中找到此刻需要的内容", size: 11, color: .secondaryLabelColor)
     private let destinationIcon = NSImageView()
     private let countLabel = Theme.label("最近记录", size: 11, weight: .medium, color: .secondaryLabelColor)
     private let statusLabel = Theme.label("准备就绪", size: 11, color: .secondaryLabelColor)

@@ -50,19 +50,23 @@ private enum AXContextSnapshot {
             }
             return context
         }
-        context.fieldRole = reader.string(focused, kAXRoleAttribute as CFString, limit: 80)
-        let subrole = reader.string(focused, kAXSubroleAttribute as CFString, limit: 80)
+        // A real click on a rich web composer can leave DOM focus on a wrapper
+        // group while the editable element sits one level down.
+        let field = reader.string(focused, kAXRoleAttribute as CFString, limit: 80) == kAXGroupRole as String
+            ? reader.editableChild(of: focused) ?? focused : focused
+        context.fieldRole = reader.string(field, kAXRoleAttribute as CFString, limit: 80)
+        let subrole = reader.string(field, kAXSubroleAttribute as CFString, limit: 80)
         if subrole == kAXSecureTextFieldSubrole as String {
             context.isSecure = true
             return context
         }
         for attribute in [kAXPlaceholderValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute] {
-            let label = reader.string(focused, attribute as CFString, limit: 240)
+            let label = reader.string(field, attribute as CFString, limit: 240)
             if !label.isEmpty { context.fieldLabel = label; break }
         }
         var selection: CFRange?
         var windowSelection: NSRange?
-        if let raw = reader.value(focused, kAXSelectedTextRangeAttribute as CFString),
+        if let raw = reader.value(field, kAXSelectedTextRangeAttribute as CFString),
            CFGetTypeID(raw) == AXValueGetTypeID() {
             let rangeValue = raw as! AXValue
             var range = CFRange()
@@ -70,7 +74,7 @@ private enum AXContextSnapshot {
                range.location >= 0, range.location < 1_000_000_000,
                range.length >= 0, range.length < 1_000_000_000 { selection = range }
         }
-        let characterCount = (reader.value(focused, kAXNumberOfCharactersAttribute as CFString) as? NSNumber)?.intValue
+        let characterCount = (reader.value(field, kAXNumberOfCharactersAttribute as CFString) as? NSNumber)?.intValue
         if let selection {
             let start = max(0, selection.location - 700)
             let desiredEnd = selection.location + min(selection.length, 500) + 500
@@ -78,7 +82,7 @@ private enum AXContextSnapshot {
             if end > start {
                 var range = CFRange(location: start, length: min(end - start, 1_700))
                 if let value = AXValueCreate(.cfRange, &range) {
-                    context.surroundingText = reader.parameterizedString(focused, kAXStringForRangeParameterizedAttribute as CFString,
+                    context.surroundingText = reader.parameterizedString(field, kAXStringForRangeParameterizedAttribute as CFString,
                                                                         parameter: value, limit: 1_700)
                     if !context.surroundingText.isEmpty {
                         windowSelection = NSRange(location: selection.location - start, length: selection.length)
@@ -86,12 +90,12 @@ private enum AXContextSnapshot {
                 }
             }
             if selection.length > 0, selection.length <= 1_200 {
-                context.selectedText = reader.string(focused, kAXSelectedTextAttribute as CFString, limit: 1_200)
+                context.selectedText = reader.string(field, kAXSelectedTextAttribute as CFString, limit: 1_200)
             }
         }
         if context.surroundingText.isEmpty,
            (characterCount.map { $0 >= 0 && $0 <= 8_192 } ?? (context.fieldRole == kAXTextFieldRole as String)),
-           let value = reader.value(focused, kAXValueAttribute as CFString) as? String {
+           let value = reader.value(field, kAXValueAttribute as CFString) as? String {
             let text = String(value.prefix(8_192)) as NSString
             let caret = min(selection?.location ?? text.length, text.length)
             let requestedStart = max(0, caret - 900)
@@ -109,7 +113,7 @@ private enum AXContextSnapshot {
         if let window = reader.element(app, kAXFocusedWindowAttribute as CFString) {
             context.windowTitle = reader.string(window, kAXTitleAttribute as CFString, limit: 240)
         }
-        let nearby = reader.nearbyStaticText(focused)
+        let nearby = reader.nearbyStaticText(field)
         context.surroundingText = FocusText.render(textWindow: context.surroundingText,
                                                   selection: windowSelection, selectedText: context.selectedText,
                                                   nearbyText: nearby, hostName: context.appName)
@@ -216,6 +220,19 @@ private struct BoundedAXReader {
             collectLabel(child, into: &result, unwrapContainer: false)
             if result.count == 4 { return }
         }
+    }
+
+    /// Real clicks on rich web composers can land DOM focus on a wrapper group
+    /// while the editable element sits one level down; prefer the focused child.
+    mutating func editableChild(of element: AXUIElement) -> AXUIElement? {
+        let textRoles = [kAXTextFieldRole as String, kAXTextAreaRole as String, kAXComboBoxRole as String]
+        guard let children = elements(element, kAXChildrenAttribute as CFString, limit: 8) else { return nil }
+        var fallback: AXUIElement?
+        for child in children where textRoles.contains(string(child, kAXRoleAttribute as CFString, limit: 80)) {
+            if (value(child, kAXFocusedAttribute as CFString) as? Bool) == true { return child }
+            if fallback == nil { fallback = child }
+        }
+        return fallback
     }
 
     mutating func elements(_ element: AXUIElement, _ attribute: CFString, limit: Int) -> [AXUIElement]? {
