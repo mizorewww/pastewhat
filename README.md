@@ -32,6 +32,7 @@ Native AppKit clipboard history with contextual Laya recommendations and an opt-
 **Homebrew（推荐）**
 
 ```bash
+brew trust mizorewww/tap   # Homebrew 7+ 首次从第三方 tap 安装 cask 时需要
 brew install --cask mizorewww/tap/pastewhat
 ```
 
