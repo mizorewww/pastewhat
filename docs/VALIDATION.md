@@ -35,6 +35,7 @@ The dedicated ranker adapter is implemented and builds with warnings as errors. 
 | Native panel | Actual light/dark rendering, real-model promotion, arrow-key selection, matching preview, source search, no-results state, disabled empty actions and settings layout inspected through Computer Use. |
 | IME/responder handling | Review found and corrected interception of marked-text Enter/arrow keys and Command-Delete in the search field. |
 | Accessibility context | A separate development process read the expected context from a controlled native target's text field. |
+| Chromium/Electron context | Cold Chrome 153 (fresh profile) returned nil focused elements and no web AX tree until the accessibility opt-in; the opt-in set reports an error yet enables the tree within ~2 s and for the rest of the session. Verified on a controlled data-URL page (bare `contenteditable` reads as AXTextArea; adjacent label nested one AXGroup deep) and on a real ChatGPT composer, where the panel captured context and Laya recommended on-device. |
 | Cross-process paste | With the controlled target in the foreground, the real PasteController dispatched Command-V and the target text view contained the exact expected inserted text. When another app was foreground, dispatch was refused. |
 | Cleanup | Original clipboard contents restored; temporary native applications, verification sources, private snapshots and data directories removed. |
 

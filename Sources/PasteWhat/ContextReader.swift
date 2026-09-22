@@ -26,12 +26,25 @@ final class ContextReader {
 }
 
 private enum AXContextSnapshot {
+    /// Chromium/Electron apps expose web content only after an assistive client opts
+    /// in; until then AXFocusedUIElement is nil or a window-level shell. Native apps
+    /// answer immediately, so only categories known to host web content warm up.
+    private static let warmUpCategories: Set<ApplicationCategory> = [.browser, .development, .messaging, .writing, .unknown]
+    private static let shellRoles: Set<String> = [kAXWindowRole as String, kAXScrollAreaRole as String]
+
     static func read(_ base: AppContext) -> AppContext {
         var context = base
         guard AXIsProcessTrusted() else { context.hasAccessibility = false; return context }
-        var reader = BoundedAXReader()
+        var probeReader = BoundedAXReader()
         let app = AXUIElementCreateApplication(base.processID)
-        guard let focused = reader.element(app, kAXFocusedUIElementAttribute as CFString) else {
+        var focused = probeReader.element(app, kAXFocusedUIElementAttribute as CFString)
+        if isShellResult(focused, reader: &probeReader),
+           warmUpCategories.contains(ApplicationCategory.classify(bundleID: base.bundleID)),
+           let warmed = warmUpFocusedElement(app: app) {
+            focused = warmed
+        }
+        var reader = BoundedAXReader()
+        guard let focused else {
             if let window = reader.element(app, kAXFocusedWindowAttribute as CFString) {
                 context.windowTitle = reader.string(window, kAXTitleAttribute as CFString, limit: 240)
             }
@@ -102,10 +115,39 @@ private enum AXContextSnapshot {
                                                   nearbyText: nearby, hostName: context.appName)
         return context
     }
+
+    private static func isShellResult(_ element: AXUIElement?, reader: inout BoundedAXReader) -> Bool {
+        guard let element else { return true }
+        return shellRoles.contains(reader.string(element, kAXRoleAttribute as CFString, limit: 80))
+    }
+
+    /// Opt the app into web accessibility, then give its renderer a moment to build
+    /// the tree. Current Chrome acknowledges AXManualAccessibility with a
+    /// cannotComplete error yet still enables the tree about two seconds later, so
+    /// the poll — not the set result — is the source of truth.
+    private static func warmUpFocusedElement(app: AXUIElement) -> AXUIElement? {
+        _ = AXUIElementSetMessagingTimeout(app, 0.15)
+        _ = AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        _ = AXUIElementSetAttributeValue(app, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+        let deadline = ProcessInfo.processInfo.systemUptime + 3.0
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            Thread.sleep(forTimeInterval: 0.4)
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &value) == .success,
+                  let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { continue }
+            let element = value as! AXUIElement
+            var roleValue: CFTypeRef?
+            AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+            if let role = roleValue as? String, !shellRoles.contains(role) { return element }
+        }
+        return nil
+    }
 }
 
 private struct BoundedAXReader {
-    private var remaining = 30
+    // The 0.85s deadline is the responsiveness guard; the op count only bounds
+    // worst-case chatter, with room for the one-level web label unwrap.
+    private var remaining = 64
     private let deadline = ProcessInfo.processInfo.systemUptime + 0.85
 
     private mutating func prepare(_ element: AXUIElement) -> Bool {
@@ -144,6 +186,8 @@ private struct BoundedAXReader {
 
     /// A narrow neighborhood, never a recursive window/document scrape. Other
     /// editable fields are excluded, including secure fields and their values.
+    /// Web pages nest visible labels one wrapper deep (div → AXGroup → text),
+    /// unlike flat native layouts, so container siblings get one bounded peek inside.
     mutating func nearbyStaticText(_ focused: AXUIElement) -> [String] {
         guard let parent = element(focused, kAXParentAttribute as CFString),
               let children = elements(parent, kAXChildrenAttribute as CFString, limit: 32),
@@ -151,16 +195,27 @@ private struct BoundedAXReader {
         let positions = [index - 1, index + 1, index - 2, index + 2, index - 3, index + 3]
         var result: [String] = []
         for position in positions where children.indices.contains(position) {
-            let sibling = children[position]
-            let role = string(sibling, kAXRoleAttribute as CFString, limit: 80)
-            guard [kAXStaticTextRole as String, kAXHeadingRole as String].contains(role) else { continue }
-            if (value(sibling, kAXHiddenAttribute as CFString) as? Bool) == true { continue }
-            var label = string(sibling, kAXValueAttribute as CFString, limit: 240)
-            if label.isEmpty { label = string(sibling, kAXTitleAttribute as CFString, limit: 240) }
-            if !label.isEmpty { result.append(label) }
+            collectLabel(children[position], into: &result, unwrapContainer: true)
             if result.count == 4 { break }
         }
         return result
+    }
+
+    private mutating func collectLabel(_ element: AXUIElement, into result: inout [String], unwrapContainer: Bool) {
+        let role = string(element, kAXRoleAttribute as CFString, limit: 80)
+        if [kAXStaticTextRole as String, kAXHeadingRole as String].contains(role) {
+            if (value(element, kAXHiddenAttribute as CFString) as? Bool) == true { return }
+            var label = string(element, kAXValueAttribute as CFString, limit: 240)
+            if label.isEmpty { label = string(element, kAXTitleAttribute as CFString, limit: 240) }
+            if !label.isEmpty { result.append(label) }
+            return
+        }
+        guard unwrapContainer, role == kAXGroupRole as String,
+              let nested = elements(element, kAXChildrenAttribute as CFString, limit: 6) else { return }
+        for child in nested {
+            collectLabel(child, into: &result, unwrapContainer: false)
+            if result.count == 4 { return }
+        }
     }
 
     mutating func elements(_ element: AXUIElement, _ attribute: CFString, limit: Int) -> [AXUIElement]? {
