@@ -154,7 +154,6 @@ final class ClipboardPanelController: NSViewController, NSTableViewDataSource, N
         search.controlSize = .large
         search.focusRingType = .none
         search.sendsSearchStringImmediately = true
-        search.sendsWholeSearchString = false
         search.delegate = self
         search.setAccessibilityLabel("搜索剪贴板记录")
         search.translatesAutoresizingMaskIntoConstraints = false

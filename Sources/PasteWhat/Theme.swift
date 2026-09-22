@@ -7,7 +7,6 @@ enum Theme {
             ? NSColor(srgbRed: 0.70, green: 0.65, blue: 1.0, alpha: 1)
             : NSColor(srgbRed: 0.34, green: 0.26, blue: 0.77, alpha: 1)
     }
-    static let muted = NSColor.secondaryLabelColor
 
     static func label(_ text: String, size: CGFloat = 13, weight: NSFont.Weight = .regular,
                       color: NSColor = .labelColor) -> NSTextField {

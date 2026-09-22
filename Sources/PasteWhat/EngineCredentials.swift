@@ -13,20 +13,7 @@ enum EngineCredentials {
               secret.unicodeScalars.allSatisfy({ (33...126).contains($0.value) }) else {
             throw CocoaError(.validationMissingMandatoryProperty)
         }
-        let manager = FileManager.default
-        try manager.createDirectory(at: directory, withIntermediateDirectories: true,
-                                    attributes: [.posixPermissions: 0o700])
-        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
-        let temporary = directory.appendingPathComponent(".jev-\(UUID().uuidString)")
-        guard manager.createFile(atPath: temporary.path, contents: Data(secret.utf8),
-                                 attributes: [.posixPermissions: 0o600]) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        defer { try? manager.removeItem(at: temporary) }
-        let result = temporary.withUnsafeFileSystemRepresentation { source in
-            jevFile.withUnsafeFileSystemRepresentation { target in Darwin.rename(source!, target!) }
-        }
-        guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        try AtomicPrivateFile.write(Data(secret.utf8), to: jevFile)
     }
 
     static func removeJevKey() throws {

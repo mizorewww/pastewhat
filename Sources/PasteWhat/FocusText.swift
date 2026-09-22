@@ -62,7 +62,7 @@ enum FocusText {
         // quotes and delimiters rather than treating them as boundary markers.
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.withoutEscapingSlashes]
-        guard let data = try? encoder.encode(value), let encoded = String(data: data, encoding: .utf8) else { return "null" }
-        return encoded
+        let data = try! encoder.encode(value)
+        return String(decoding: data, as: UTF8.self)
     }
 }

@@ -10,10 +10,10 @@ import stat
 import time
 import urllib.error
 import urllib.request
-from collections import OrderedDict
 from pathlib import Path
 
 from ranking import extract_features, make_intent, preselect
+from worker import LRUCache, base_response
 
 ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-latest"
@@ -95,7 +95,6 @@ def post(body):
             payload = response.read(MAX_RESPONSE_BYTES + 1)
         if len(payload) > MAX_RESPONSE_BYTES:
             raise JevError("Jev 响应过大，本次保留最近记录。")
-        return json.loads(payload)
     except urllib.error.HTTPError as error:
         # Never print error bodies: services may echo submitted input.
         message = {401: "Jev API Key 无效，请在设置中更新。",
@@ -103,19 +102,21 @@ def post(body):
                    429: "Jev 请求限流，请稍后再试。",
                    529: "Jev 暂时繁忙，请稍后再试。"}.get(error.code)
         raise JevError(message or "Jev 服务暂时不可用，本次保留最近记录。") from None
-    except (OSError, ValueError):
+    except OSError:
         raise JevError("Jev 连接未完成，本次保留最近记录。") from None
+    try:
+        return json.loads(payload)
+    except ValueError:
+        raise JevError("Jev 响应格式无效，本次保留最近记录。") from None
 
 
 class JevEngine:
     def __init__(self):
-        self.cache = OrderedDict()
+        self.cache = LRUCache(24)
 
     def respond(self, request_id, context, entries):
         started = time.perf_counter()
-        result = {"id": request_id, "recommendedID": None, "rankings": [], "mode": "jev",
-                  "backend": "jev", "elapsedMS": 0, "message": None, "decision": "empty_history",
-                  "shortlistedIDs": [], "inferenceCount": 0, "appliedFacets": [], "modelVersion": None}
+        result = base_response(request_id, "jev", "jev")
         if context["isSecure"]:
             self.cache.clear()
             result.update(decision="secure_field", message="安全输入框已暂停语境推荐。")
@@ -136,18 +137,14 @@ class JevEngine:
                         "questions": {"paste": {"type": "choice", "instructions": INSTRUCTIONS, "criteria": criteria}}}
                 fingerprint = hashlib.sha256(json.dumps(body, ensure_ascii=False, sort_keys=True).encode()).digest()
                 try:
-                    if fingerprint in self.cache:
-                        raw = self.cache[fingerprint]
-                        self.cache.move_to_end(fingerprint)
-                    else:
+                    cached = self.cache.lookup(fingerprint)
+                    if cached is None:
                         result["inferenceCount"] = 1
                         raw = post(body)
-                        validate_answer(raw, criteria)
-                        self.cache[fingerprint] = raw
-                        while len(self.cache) > 24:
-                            self.cache.popitem(last=False)
-                    answer = validate_answer(raw, criteria)
-                    result["modelVersion"] = raw["model"]
+                        answer = validate_answer(raw, criteria)
+                        cached = (raw["model"], answer)
+                        self.cache.store(fingerprint, cached)
+                    result["modelVersion"], answer = cached
                     result["appliedFacets"] = ["candidate_choice"]
                     result["rankings"] = sorted(
                         [{"id": entry["id"], "score": answer["probabilities"][key],

@@ -13,7 +13,6 @@ import collections
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import queue
 import statistics
@@ -21,7 +20,7 @@ import subprocess
 import tempfile
 import threading
 import time
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
@@ -69,6 +68,7 @@ def project_contexts(cases):
     """Use the production Swift projection, never the dataset's annotated surface."""
     sources = [ROOT.parent / "Sources/PasteWhat/Models.swift",
                ROOT.parent / "Sources/PasteWhat/RecommendationContext.swift",
+               ROOT.parent / "Sources/PasteWhat/CandidateProjection.swift",
                ROOT / "ProjectContext.swift"]
     hashes = {}
     with tempfile.TemporaryDirectory(prefix="pastewhat-context-eval-") as directory:
@@ -100,8 +100,9 @@ class Worker:
     def __init__(self, command, timeout):
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", HF_HUB_OFFLINE="1",
                    TRANSFORMERS_OFFLINE="1", HF_HUB_DISABLE_TELEMETRY="1")
+        self.stderr = tempfile.TemporaryFile(prefix="pastewhat-worker-stderr-")  # noqa: SIM115 - closed in close().
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.DEVNULL, text=True, bufsize=1, env=env)
+                                        stderr=self.stderr, text=True, bufsize=1, env=env)
         self.timeout = timeout
         self.lines = queue.Queue()
         self.reader = threading.Thread(target=self._read, daemon=True)
@@ -132,6 +133,11 @@ class Worker:
             raise ValueError("Worker recommended an ID outside the original full history.")
         return result, (time.perf_counter() - started) * 1000
 
+    def stderr_tail(self, limit=4096):
+        size = self.stderr.seek(0, os.SEEK_END)
+        self.stderr.seek(max(0, size - limit))
+        return self.stderr.read().decode("utf-8", errors="replace")
+
     def close(self):
         if self.process.poll() is None:
             self.process.stdin.close()
@@ -144,6 +150,7 @@ class Worker:
                 except subprocess.TimeoutExpired:
                     self.process.kill()
                     self.process.wait(timeout=5)
+        self.stderr.close()
 
 
 def percentile(values, percentage):
@@ -259,15 +266,17 @@ def main():
                       for path in sorted(args.worker.parent.glob("*.py"))} if args.protocol == "current" else {
                           args.worker.name: hashlib.sha256(worker_bytes).hexdigest()}
     warmup_input = warmup_case()
-    projection = project_contexts([*cases, warmup_input]) if args.protocol == "current" else None
-    command = [args.python, "-u", str(args.worker.resolve()), "--backend", args.backend]
-    if args.model is not None:
-        command.extend(["--model", str(args.model.resolve())])
-    if args.no_model:
-        command.append("--no-model")
-    worker = Worker(command, args.timeout)
+    projection = None
+    worker = None
     records = []
     try:
+        projection = project_contexts([*cases, warmup_input]) if args.protocol == "current" else None
+        command = [args.python, "-u", str(args.worker.resolve()), "--backend", args.backend]
+        if args.model is not None:
+            command.extend(["--model", str(args.model.resolve())])
+        if args.no_model:
+            command.append("--no-model")
+        worker = Worker(command, args.timeout)
         warmup_request = request_for(warmup_input, args.protocol)
         warmup, warmup_wall = worker.request(warmup_request)
         warmup_error = evaluation_error(warmup, warmup_request, args.protocol, args.no_model, args.backend)
@@ -301,17 +310,19 @@ def main():
                     raise RuntimeError(case["id"] + ": " + error)
                 if index % 10 == 0 or index == len(cases):
                     print(json.dumps({"completed": index, "total": len(cases), "label": args.label}), flush=True)
-        if not args.no_model and not (warmup.get("inferenceCount", 0) or any(row["inferenceCount"] for row in records)):
-            if args.protocol != "legacy":
-                raise RuntimeError("No real model inference observed; do not report this as a model evaluation.")
+        if (not args.no_model and args.protocol != "legacy"
+                and not (warmup.get("inferenceCount", 0) or any(row["inferenceCount"] for row in records))):
+            raise RuntimeError("No real model inference observed; do not report this as a model evaluation.")
     except Exception as error:
         failure = {"label": args.label, "error": type(error).__name__, "message": str(error),
                    "completedCases": len(records), "workerSourcesSHA256": worker_sources,
-                   "contextProjection": projection, "datasetSHA256": manifest["sha256"]}
+                   "contextProjection": projection, "datasetSHA256": manifest["sha256"],
+                   "workerStderrTail": worker.stderr_tail() if worker is not None else None}
         (args.output / f"{args.label}.failure.json").write_text(json.dumps(failure, indent=2) + "\n")
         raise
     finally:
-        worker.close()
+        if worker is not None:
+            worker.close()
 
     summary = {"label": args.label, "datasetSHA256": manifest["sha256"],
                "workerSHA256": hashlib.sha256(worker_bytes).hexdigest(),

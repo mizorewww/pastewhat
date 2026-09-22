@@ -67,7 +67,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            Task { @MainActor in self?.closePanel() }
+            Task { @MainActor in
+                guard let self, self.panel.isVisible else { return }
+                self.closePanel()
+            }
         }
         store.onChange = { [weak self] in
             guard let self, self.panel.isVisible else { return }
@@ -80,7 +83,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         engine.onStatus = { [weak self] message in
             guard let self, self.panel.isVisible else { return }
-            self.panelController.setStatus(self.storageStatus ?? message)
+            self.setPanelStatus(message)
         }
         configureHotKey()
         if isDemo {
@@ -120,9 +123,19 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         engine.stop()
         Task {
             await store.flush()
-            sender.reply(toApplicationShouldTerminate: true)
+            finishTermination(sender)
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            finishTermination(sender)
         }
         return .terminateLater
+    }
+
+    private func finishTermination(_ sender: NSApplication) {
+        guard terminating else { return }
+        terminating = false
+        sender.reply(toApplicationShouldTerminate: true)
     }
 
     private func installApplicationMenu() {
@@ -182,7 +195,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         panelController.begin(context: context, entries: entries, demo: isDemo)
         panelController.setPaused(store.isPaused)
-        panelController.setStatus(storageStatus ?? shortcutStatus ?? (entries.isEmpty ? "等待下一次复制" : "正在读取当前语境…"))
+        setPanelStatus(shortcutStatus ?? (entries.isEmpty ? "等待下一次复制" : "正在读取当前语境…"))
         positionPanel()
         panel.makeKeyAndOrderFront(nil)
         panelController.focusSearch()
@@ -224,15 +237,19 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if panel.isVisible { closePanel() }
     }
 
+    private func setPanelStatus(_ fallback: String) {
+        panelController.setStatus(storageStatus ?? fallback)
+    }
+
     private func recommend() {
         rankingTask?.cancel()
         guard !entries.isEmpty, panel.isVisible, contextReady else { return }
         let id = UUID().uuidString
         requestID = id
         let candidates = engine.configuration.backend == "ranker"
-            ? entries.prefix(20).map(\.rankerCandidate) : entries.prefix(20).map(\.candidate)
+            ? entries.map(\.rankerCandidate) : entries.map(\.candidate)
         let request = RecommendationRequest(id: id, context: context.modelContext, entries: candidates)
-        panelController.setStatus(storageStatus ?? "\(engine.configuration.displayName) 正在寻找合适的内容…")
+        setPanelStatus("\(engine.configuration.displayName) 正在寻找合适的内容…")
         rankingTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -240,11 +257,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 guard !Task.isCancelled, requestID == id, panel.isVisible else { return }
                 panelController.setRecommendation(response)
                 let modelStatus = response.statusText
-                panelController.setStatus(storageStatus ?? (store.isPaused ? "记录已暂停 · \(modelStatus)" : modelStatus))
+                setPanelStatus(store.isPaused ? "记录已暂停 · \(modelStatus)" : modelStatus)
             } catch {
                 guard !Task.isCancelled, requestID == id, panel.isVisible else { return }
                 panelController.setRecommendation(nil)
-                panelController.setStatus(storageStatus ?? "按复制时间排列 · 请在设置中检查推荐引擎")
+                setPanelStatus("按复制时间排列 · 请在设置中检查推荐引擎")
             }
         }
     }
@@ -257,7 +274,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func paste(_ entry: ClipboardEntry) {
-        do { try store.copy(entry: entry) }
+        let clipboardVersion: Int
+        do { clipboardVersion = try store.copy(entry: entry) }
         catch { panelController.setStatus("复制失败：\(error.localizedDescription)"); return }
         if isDemo { panelController.setStatus("已复制演示内容，按 ⌘V 粘贴"); return }
         if !contextReady {
@@ -275,7 +293,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let destination = context
         closePanel()
         Task { [weak self] in
-            let message = await PasteController.paste(to: destination)
+            let message = await PasteController.paste(to: destination, clipboardVersion: clipboardVersion)
             if let message {
                 self?.showPasteFeedback(message)
             }
@@ -289,7 +307,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         feedbackTask?.cancel()
         feedbackTask = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(5)) } catch { return }
-            self?.statusItem.button?.title = ""
+            guard let self else { return }
+            self.statusItem.button?.title = ""
+            self.statusItem.button?.toolTip = self.defaultToolTip
         }
     }
 
@@ -326,10 +346,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsController?.show()
     }
 
-    private func configureHotKey() {
+    private var defaultToolTip: String {
         let choice = UserDefaults.standard.integer(forKey: "shortcutChoice")
         let captions = ["⌥⇧V", "⌘⇧V", "⌃⌥V", "点击图标"]
-        statusItem.button?.toolTip = "PasteWhat · \(captions.indices.contains(choice) ? captions[choice] : captions[0]) 打开剪贴板"
+        return "PasteWhat · \(captions[min(max(choice, 0), captions.count - 1)]) 打开剪贴板"
+    }
+
+    private func configureHotKey() {
+        let choice = UserDefaults.standard.integer(forKey: "shortcutChoice")
+        statusItem.button?.toolTip = defaultToolTip
         hotKey.unregister()
         guard choice != 3 else { return }
         let modifiers: UInt32 = choice == 1 ? UInt32(cmdKey | shiftKey) : choice == 2 ? UInt32(controlKey | optionKey) : UInt32(optionKey | shiftKey)

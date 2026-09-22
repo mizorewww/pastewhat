@@ -38,28 +38,10 @@ struct EngineConfiguration: Codable, Sendable, Equatable {
     }
 
     func save() throws {
-        let manager = FileManager.default
-        let directory = AppPaths.support
-        try manager.createDirectory(
-            at: directory, withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700]
-        )
-        let destination = directory.appendingPathComponent("engine.json")
-        let temporary = directory.appendingPathComponent(".engine-\(UUID().uuidString).json")
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(self)
-        // The replacement is created privately before its atomic rename, including on first save.
-        guard manager.createFile(atPath: temporary.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        defer { try? manager.removeItem(at: temporary) }
-        let result = temporary.withUnsafeFileSystemRepresentation { source in
-            destination.withUnsafeFileSystemRepresentation { target in
-                Darwin.rename(source!, target!)
-            }
-        }
-        guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        try AtomicPrivateFile.write(data, to: AppPaths.support.appendingPathComponent("engine.json"))
     }
 
     static var workspaceURLs: [URL] {

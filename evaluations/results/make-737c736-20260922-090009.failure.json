@@ -1,0 +1,41 @@
+{
+  "label": "make-737c736-20260922-090009",
+  "error": "RuntimeError",
+  "message": "PW068: Worker returned an error decision, not a valid recommendation/abstention.",
+  "completedCases": 68,
+  "workerSourcesSHA256": {
+    "jev.py": "8709a94391f954a7204a7ccea6304582d5ad2c4233118259829e865a44e32777",
+    "ranker.py": "df3c1e0a97a71f753ea9921300fdada667899ce120c7e8f0743c4b15f12c87b5",
+    "ranking.py": "573d07cdd11e07fc67988b5d5c54eeb62935d514b652dc1a05f9fc8db3039850",
+    "worker.py": "795c2ad764f2a9c36784f3e3771e9925473399534717f7a14d4aea4e4a14529d"
+  },
+  "contextProjection": {
+    "method": "production-swift",
+    "sourceSHA256": {
+      "Sources/PasteWhat/Models.swift": "080ac8c02eff2afa64407c6257521c1d417dc565cbdbdcdd86a9004848a0f433",
+      "Sources/PasteWhat/RecommendationContext.swift": "0b72cd4c7e7c4859b68ed41ce3eed52b28f00557698b72a3a93bdf7a1f206561",
+      "Sources/PasteWhat/CandidateProjection.swift": "d2b9051135414da56e5c6f5c0a52c15d71cd57f562a3fd1a2ad81956ae9a59eb",
+      "evaluations/ProjectContext.swift": "340fd8975576a66cef5aa44c5d9a2764d4e028d21c4a4c3879581b86bbe9e6f7"
+    },
+    "categoryCounts": {
+      "mail": 20,
+      "browser": 23,
+      "unknown": 15,
+      "file_management": 3,
+      "terminal": 13,
+      "messaging": 16,
+      "development": 17,
+      "writing": 11,
+      "spreadsheet": 3
+    },
+    "surfaceCounts": {
+      "recipient": 5,
+      "text": 109,
+      "color": 3,
+      "file_path": 2,
+      "unknown": 2
+    }
+  },
+  "datasetSHA256": "0537bde8a33eac2d0aab5dcfb649ecf89acb6b05908ba18a3c628f46476354ea",
+  "workerStderrTail": ""
+}

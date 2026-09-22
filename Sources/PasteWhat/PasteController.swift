@@ -8,7 +8,7 @@ enum PasteController {
 
     /// The caller has already written the chosen entry and dismissed its panel.
     /// A nil result means the paste events were dispatched; apps may still decline to handle them.
-    static func paste(to context: AppContext) async -> String? {
+    static func paste(to context: AppContext, clipboardVersion: Int) async -> String? {
         guard !Task.isCancelled else { return "已复制，粘贴操作已取消" }
         guard !isPasting else { return "已复制，另一条粘贴操作尚未完成" }
         guard ContextReader.isTrusted, CGPreflightPostEventAccess() else {
@@ -29,7 +29,6 @@ enum PasteController {
         guard destinationIsStillSafe() else { return "已复制，前台应用已切换，请手动粘贴" }
         isPasting = true
         defer { isPasting = false }
-        let clipboardVersion = NSPasteboard.general.changeCount
         if !target.isActive {
             if NSApp.isActive { NSApp.yieldActivation(to: target) }
             guard target.activate(options: []) else { return "已复制，无法切回原应用，请手动粘贴" }

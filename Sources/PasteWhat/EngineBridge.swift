@@ -68,10 +68,6 @@ final class EngineBridge {
         let token = UUID()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                guard !Task.isCancelled else {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
                 pending.append(Pending(
                     token: token, requestID: request.id,
                     candidateIDs: Set(request.entries.map(\.id)),
@@ -211,10 +207,6 @@ final class EngineBridge {
 
     private func receive(_ data: Data, generation receivedGeneration: UUID) {
         guard generation == receivedGeneration else { return }
-        guard !data.isEmpty else {
-            connectionFailed(generation: receivedGeneration, error: .connectionClosed)
-            return
-        }
         buffer.append(data)
         guard buffer.count <= maximumMessageBytes else {
             connectionFailed(generation: receivedGeneration, error: .oversizedMessage)

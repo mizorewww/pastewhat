@@ -13,7 +13,7 @@ from collections import Counter
 from dataclasses import dataclass
 from urllib.parse import unquote, urlsplit
 
-STOP = set("""the a an of to and or is for in on at it i me my we you your this that with
+STOP_TERMS = """the a an of to and or is for in on at it i me my we you your this that with
 from need current app field task please paste set environment string value list can
 could would should into want have has be as are was how do does then using use here
 there enter input insert copy copied clipboard content provide give send put get
@@ -22,7 +22,8 @@ http https www com org net example recipient address email url uri link phone nu
 color colour hex file folder path image picture photo code command text message
 only just not no don't without instead than but any some all something nothing
 now find choose select show an e mail for our their its type format option
-""".split())
+"""
+STOP = set(STOP_TERMS.split())
 
 KIND_PATTERNS = {
     "email": r"\b(?:e-?mail(?: address)?|recipient)\b|邮箱|邮件地址|收件人",
@@ -50,9 +51,10 @@ PURPOSE_PATTERNS = {
 }
 SURFACE_KIND = {"recipient": "email", "address_bar": "url", "shell_prompt": "command",
                 "code_editor": "code", "color": "color", "file_path": "path", "phone": "phone"}
-NEGATION = re.compile(r"(?:\b(?:not|no|without|except|excluding|avoid|rather than|instead of|don't|do not)\b|不要|不是|不含|排除|而非|别用)\s*", re.I)
-EMAIL = re.compile(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}", re.I)
-URL = re.compile(r"https?://[^\s<>\"']+", re.I)
+NEGATION_TERMS = r"\b(?:not|no|without|except|excluding|avoid|rather than|instead of|don't|do not)\b|不要|不是|不含|排除|而非|别用"
+NEGATION = re.compile(r"(?:" + NEGATION_TERMS + r")\s*", re.IGNORECASE)
+EMAIL = re.compile(r"[\w.+-]+@[\w.-]+\.[a-z]{2,}", re.IGNORECASE)
+URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 
 
 def normalized(text):
@@ -85,7 +87,7 @@ def terms(text):
 
 
 def negative_at(text, start):
-    prefix = re.split(r"[,.;!?，。；！？\n]|\b(?:but|instead|and then)\b|而是|但是", text[:start], flags=re.I)[-1]
+    prefix = re.split(r"[,.;!?，。；！？\n]|\b(?:but|instead|and then)\b|而是|但是", text[:start], flags=re.IGNORECASE)[-1]
     matches = list(NEGATION.finditer(prefix))
     return bool(matches and len(prefix) - matches[-1].end() <= 40)
 
@@ -93,7 +95,7 @@ def negative_at(text, start):
 def signed_labels(text, patterns):
     positive, negative = set(), set()
     for label, pattern in patterns.items():
-        for match in re.finditer(pattern, text, re.I):
+        for match in re.finditer(pattern, text, re.IGNORECASE):
             (negative if negative_at(text, match.start()) else positive).add(label)
     # Conflicting mentions are ambiguous; never silently convert them into a hard constraint.
     return positive - negative, negative - positive
@@ -101,8 +103,8 @@ def signed_labels(text, patterns):
 
 def positive_text(text):
     return re.sub(
-        r"(?:\b(?:not|without|except|excluding|avoid|instead of|rather than)\b|不要|不是|不含|排除|而非)[^,.;!?，。；！？\n]*",
-        " ", text, flags=re.I,
+        r"(?:" + NEGATION_TERMS + r")[^,.;!?，。；！？\n]*",
+        " ", text, flags=re.IGNORECASE,
     )
 
 
@@ -158,22 +160,22 @@ LANGUAGE_PATTERNS = {
 def structural_entities(text, *, candidate=False):
     result = set()
     for language, pattern in LANGUAGE_PATTERNS.items():
-        if re.search(pattern, text, re.I | re.M):
+        if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
             result.add(("code_language", language))
     # Syntax-aware equivalents, not a mapping from task examples to particular snippets.
     if candidate:
-        if re.search(r"\border\s+by\b[^;\n]*\bdesc\b", text, re.I):
+        if re.search(r"\border\s+by\b[^;\n]*\bdesc\b", text, re.IGNORECASE):
             result.add(("sort_direction", "descending"))
-        if re.search(r"\border\s+by\b[^;\n]*\basc\b", text, re.I):
+        if re.search(r"\border\s+by\b[^;\n]*\basc\b", text, re.IGNORECASE):
             result.add(("sort_direction", "ascending"))
         if re.match(r"\s*(?://|/\*|# |-- )", text):
             result.add(("code_form", "comment"))
     else:
-        if re.search(r"\bdescending\b|降序|从大到小", text, re.I):
+        if re.search(r"\bdescending\b|降序|从大到小", text, re.IGNORECASE):
             result.add(("sort_direction", "descending"))
-        if re.search(r"\bascending\b|升序|从小到大", text, re.I):
+        if re.search(r"\bascending\b|升序|从小到大", text, re.IGNORECASE):
             result.add(("sort_direction", "ascending"))
-        if re.search(r"\bcomment\b|注释", text, re.I):
+        if re.search(r"\bcomment\b|注释", text, re.IGNORECASE):
             result.add(("code_form", "comment"))
     return result
 
@@ -184,11 +186,11 @@ def content_kind(entry):
         return "email"
     if URL.fullmatch(text):
         return "url"
-    if re.fullmatch(r"#[0-9a-f]{3}(?:[0-9a-f]{3})?(?:[0-9a-f]{2})?|rgba?\([^\n]+\)", text, re.I):
+    if re.fullmatch(r"#[0-9a-f]{3}(?:[0-9a-f]{3})?(?:[0-9a-f]{2})?|rgba?\([^\n]+\)", text, re.IGNORECASE):
         return "color"
     if re.fullmatch(r"\+?[0-9][0-9 ()-]{5,24}[0-9]", text) and 7 <= sum(c.isdigit() for c in text) <= 18:
         return "phone"
-    if re.match(r"(?:/|~/|[a-z]:[\\/]|file://)", text, re.I) and "\n" not in text:
+    if re.match(r"(?:/|~/|[a-z]:[\\/]|file://)", text, re.IGNORECASE) and "\n" not in text:
         return "path"
     if entry["kind"] in {"code", "command", "image", "file"}:
         return entry["kind"]
@@ -336,7 +338,7 @@ def preselect(features, intent):
     limit = 6 if intent.required_kind or intent.entities or len(intent.wanted_kinds) == 1 else 10
     if not intent.has_context or ranked[0]["evidence"] < 1.5 or len(ranked) <= limit:
         return [row["feature"] for row in ranked]
-    cutoff = max(ranked[min(limit, len(ranked)) - 1]["evidence"], ranked[0]["evidence"] - 5.0)
+    cutoff = max(ranked[limit - 1]["evidence"], ranked[0]["evidence"] - 5.0)
     selected = {row["feature"].entry["id"] for row in ranked
                 if row["evidence"] >= cutoff - 0.001 or row["exact"]}
     selected.update(row["feature"].entry["id"] for row in sorted(ranked, key=lambda r: r["feature"].index)[:2])

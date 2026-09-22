@@ -51,11 +51,6 @@ struct ClipboardEntry: Codable, Identifiable, Sendable {
         return line.isEmpty ? kind.label : String(line.prefix(180))
     }
 
-    var subtitle: String {
-        let lines = text.split(whereSeparator: \.isNewline)
-        return lines.count > 1 ? String(lines.dropFirst().joined(separator: " ").prefix(180)) : ""
-    }
-
     var searchText: String { "\(text) \(sourceApp) \(kind.label)" }
 
     var candidate: RecommendationCandidate {

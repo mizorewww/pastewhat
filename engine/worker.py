@@ -10,13 +10,13 @@ import math
 import os
 import sys
 import time
-from pathlib import Path
 from collections import OrderedDict
+from pathlib import Path
 
 # This worker lives inside a signed app bundle. Set this before importing sibling
 # modules; doing it only in main() writes __pycache__ into the sealed resources.
 sys.dont_write_bytecode = True
-from ranking import extract_features, make_intent, preselect, useful_facets, score_candidates, decide, public_rankings
+from ranking import decide, extract_features, make_intent, preselect, public_rankings, score_candidates, useful_facets
 
 MAX_LINE_BYTES = 1024 * 1024
 MAX_ENTRIES = 20
@@ -87,6 +87,45 @@ def bounded_string(value, limit):
     return value[:limit]
 
 
+RANKER_VERSION = "PasteWhat-Ranker-v1"
+
+
+class LRUCache(OrderedDict):
+    def __init__(self, capacity):
+        super().__init__()
+        self.capacity = capacity
+
+    def lookup(self, key):
+        if key not in self:
+            return None
+        self.move_to_end(key)
+        return self[key]
+
+    def store(self, key, value):
+        self[key] = value
+        self.move_to_end(key)
+        while len(self) > self.capacity:
+            self.popitem(last=False)
+
+
+def base_response(request_id, backend, mode, *, message=None, model_version=None):
+    result = {
+        "id": request_id, "recommendedID": None, "rankings": [], "mode": mode,
+        "backend": backend, "elapsedMS": 0.0, "message": message,
+        "decision": "empty_history", "shortlistedIDs": [], "inferenceCount": 0, "appliedFacets": [],
+    }
+    if backend in ("jev", "ranker"):
+        result["modelVersion"] = model_version
+    return result
+
+
+def failure_response(backend, message, request_id=""):
+    result = base_response(request_id, backend, "fallback", message=message,
+                           model_version=RANKER_VERSION if backend == "ranker" else None)
+    result["decision"] = "invalid_request"
+    return result
+
+
 def validate_request(raw, *, text_limit=8_192):
     if not isinstance(raw, dict) or not valid_id(raw.get("id")):
         raise InvalidRequest("请求标识无效。")
@@ -101,9 +140,8 @@ def validate_request(raw, *, text_limit=8_192):
     clean_context = {}
     for key, limit in CONTEXT_LIMITS.items():
         value = context.get(key, "unknown" if key in ("applicationCategory", "inputSurface") else "")
-        clean_context[key] = bounded_string(value, limit)
-        if key == "surroundingText":
-            clean_context[key] = value[-limit:]
+        bounded = bounded_string(value, limit)
+        clean_context[key] = value[-limit:] if key == "surroundingText" else bounded
     for key in ("hasAccessibility", "isSecure"):
         value = context.get(key, False)
         if not isinstance(value, bool):
@@ -149,7 +187,7 @@ class RecommendationEngine:
         self.agent = None
         self.load_error = None
         self.no_model = no_model
-        self.cache = OrderedDict()
+        self.cache = LRUCache(24)
         self.inference_count = 0
 
     def load(self):
@@ -226,9 +264,9 @@ class RecommendationEngine:
         question = {name: QUESTIONS[name]}
         state = self.bounded_context(context, question)
         fingerprint = hashlib.sha256((name + state).encode("utf-8")).digest()
-        if fingerprint in self.cache:
-            self.cache.move_to_end(fingerprint)
-            return self.cache[fingerprint]
+        cached = self.cache.lookup(fingerprint)
+        if cached is not None:
+            return cached
         self.inference_count += 1
         result = self.agent.predict(state, question)
         probabilities = result["answers"][name]["probabilities"]
@@ -238,19 +276,14 @@ class RecommendationEngine:
             for key in QUESTIONS[name]["criteria"]
         ):
             raise ValueError("Invalid model probabilities")
-        self.cache[fingerprint] = dict(probabilities)
-        while len(self.cache) > 24:
-            self.cache.popitem(last=False)
-        return self.cache[fingerprint]
+        probabilities = dict(probabilities)
+        self.cache.store(fingerprint, probabilities)
+        return probabilities
 
     def respond(self, request_id, context, entries):
         started = time.perf_counter()
         self.inference_count = 0
-        result = {
-            "id": request_id, "recommendedID": None, "rankings": [], "mode": "fallback",
-            "backend": self.backend, "elapsedMS": 0.0, "message": None,
-            "decision": "empty_history", "shortlistedIDs": [], "inferenceCount": 0, "appliedFacets": [],
-        }
+        result = base_response(request_id, self.backend, "fallback")
         if context["isSecure"]:
             self.cache.clear()
             result.update(decision="secure_field", message="安全输入框已暂停语境推荐。")
@@ -267,7 +300,7 @@ class RecommendationEngine:
                         signals[name] = self.infer(context, name)
                         result["appliedFacets"].append(name)
                     result["mode"] = "laya"
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001 - model runtimes raise arbitrary types; keep local matching.
                     signals = {}
                     result["appliedFacets"] = []
                     runtime_message = self.load_error or "本次 Laya 推理未完成，已使用本地匹配。"
@@ -281,14 +314,6 @@ class RecommendationEngine:
         result["elapsedMS"] = round((time.perf_counter() - started) * 1000, 3)
         result["inferenceCount"] = self.inference_count
         return result
-
-
-def failure_response(backend, message, request_id=""):
-    return {
-        "id": request_id, "recommendedID": None, "rankings": [], "mode": "fallback",
-        "backend": backend, "elapsedMS": 0.0, "message": message,
-        "decision": "invalid_request", "shortlistedIDs": [], "inferenceCount": 0, "appliedFacets": [],
-    }
 
 
 def main():
@@ -346,7 +371,14 @@ def main():
                     diagnostics.flush()
                     result = failure_response(args.backend, "本次推荐未完成，请重试。", request_id)
             try:
-                protocol.write(json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":")) + "\n")
+                payload = json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+            except (TypeError, ValueError) as error:
+                diagnostics.write("PasteWhat: response serialization failed (" + type(error).__name__ + ").\n")
+                diagnostics.flush()
+                result = failure_response(args.backend, "本次推荐未完成，请重试。", request_id)
+                payload = json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+            try:
+                protocol.write(payload + "\n")
             except (BrokenPipeError, OSError):
                 break
 

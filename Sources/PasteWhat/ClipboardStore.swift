@@ -144,7 +144,8 @@ final class ClipboardStore {
         }
     }
 
-    func copy(entry: ClipboardEntry, plainText: Bool = false) throws {
+    @discardableResult
+    func copy(entry: ClipboardEntry, plainText: Bool = false) throws -> Int {
         let items: [NSPasteboardItem]
         if plainText || entry.payloads.isEmpty {
             guard !entry.text.isEmpty else { throw ClipboardStoreError.noPlainText }
@@ -167,8 +168,7 @@ final class ClipboardStore {
                 return item
             }
         }
-        guard let first = items.first else { throw ClipboardStoreError.invalidPayload }
-        first.setString(UUID().uuidString, forType: ClipboardPayloadCodec.ownerType)
+        items[0].setString(UUID().uuidString, forType: ClipboardPayloadCodec.ownerType)
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         guard pasteboard.writeObjects(items) else {
@@ -177,6 +177,12 @@ final class ClipboardStore {
         }
         ownChangeCount = pasteboard.changeCount
         lastChangeCount = ownChangeCount
+        return pasteboard.changeCount
+    }
+
+    private func skipPoll(at count: Int, status: String? = nil) {
+        lastChangeCount = count
+        setCaptureStatus(status)
     }
 
     private func poll() {
@@ -205,28 +211,23 @@ final class ClipboardStore {
         }
         let source = NSWorkspace.shared.frontmostApplication
         if ClipboardPayloadCodec.isPasswordManager(source?.bundleIdentifier) {
-            lastChangeCount = count
-            setCaptureStatus(nil)
+            skipPoll(at: count)
             return
         }
         guard let items = pasteboard.pasteboardItems else {
-            lastChangeCount = count
-            setCaptureStatus("暂时无法读取剪贴板，请检查系统中的剪贴板访问设置")
+            skipPoll(at: count, status: "暂时无法读取剪贴板，请检查系统中的剪贴板访问设置")
             return
         }
         guard !items.isEmpty else {
-            lastChangeCount = count
-            setCaptureStatus(nil)
+            skipPoll(at: count)
             return
         }
         guard items.count <= ClipboardPayloadCodec.maximumItems else {
-            lastChangeCount = count
-            setCaptureStatus("已跳过项目过多的剪贴板内容")
+            skipPoll(at: count, status: "已跳过项目过多的剪贴板内容")
             return
         }
         if items.contains(where: { item in item.types.contains(where: ClipboardPayloadCodec.isExcluded) }) {
-            lastChangeCount = count
-            setCaptureStatus(nil)
+            skipPoll(at: count)
             return
         }
         var payloads: [PasteboardPayload] = []
@@ -236,8 +237,7 @@ final class ClipboardStore {
             for type in item.types where ClipboardPayloadCodec.supportedTypes.contains(type.rawValue) {
                 guard let data = item.data(forType: type) else { continue }
                 guard data.count <= ClipboardPayloadCodec.maximumBytes - byteCount else {
-                    lastChangeCount = count
-                    setCaptureStatus("已跳过超过 8 MB 的剪贴板内容")
+                    skipPoll(at: count, status: "已跳过超过 8 MB 的剪贴板内容")
                     return
                 }
                 byteCount += data.count
@@ -245,8 +245,7 @@ final class ClipboardStore {
             }
             // Dropping an unsupported item would silently turn a multi-item copy into a partial copy.
             guard !representations.isEmpty else {
-                lastChangeCount = count
-                setCaptureStatus(nil)
+                skipPoll(at: count)
                 return
             }
             payloads.append(PasteboardPayload(representations: representations))
@@ -476,31 +475,8 @@ enum ClipboardHistoryFile {
 
     static func save(_ entries: [ClipboardEntry], at url: URL) throws {
         guard !entries.isEmpty else { try remove(at: url); return }
-        let fileManager = FileManager.default
-        let directory = url.deletingLastPathComponent()
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true,
-                                        attributes: [.posixPermissions: 0o700])
-        try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         let data = try JSONEncoder().encode(entries)
-        let temporary = directory.appendingPathComponent(".history-\(UUID().uuidString).tmp")
-        let descriptor = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
-        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-        defer {
-            Darwin.close(descriptor)
-            try? fileManager.removeItem(at: temporary)
-        }
-        try data.withUnsafeBytes { buffer in
-            var written = 0
-            while written < buffer.count {
-                let count = Darwin.write(descriptor, buffer.baseAddress!.advanced(by: written), buffer.count - written)
-                if count < 0, errno == EINTR { continue }
-                guard count > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-                written += count
-            }
-        }
-        guard fsync(descriptor) == 0, Darwin.rename(temporary.path, url.path) == 0 else {
-            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-        }
+        try AtomicPrivateFile.write(data, to: url)
     }
 
     static func remove(at url: URL) throws {
