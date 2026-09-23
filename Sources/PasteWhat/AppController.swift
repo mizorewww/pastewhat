@@ -248,7 +248,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         requestID = id
         // The panel always shows and searches the full stored history; only the
         // engine's ranking pool is narrowed to the most recent entries.
-        let pool = entries.prefix(10)
+        let pool = entries.prefix(20)
         let candidates = engine.configuration.backend == "ranker"
             ? pool.map(\.rankerCandidate) : pool.map(\.candidate)
         let request = RecommendationRequest(id: id, context: context.modelContext, entries: candidates)
